@@ -10,7 +10,7 @@
 ;; modified software.  See http://www.gnu.org/copyleft/lesser.html
 ;; for more information.
 
-#lang racket/base#lang info
+#lang info
 (define collection "slant-tau")
 (define deps '("base"
                "rackunit-lib"))
