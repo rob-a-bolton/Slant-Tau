@@ -94,10 +94,10 @@ nested set of words in a word hash"
 "Zips two or more lists together."
   (let ziploop ((lst '())
                 (lists lists))
-  (if (ormap empty? lists)
-      (reverse lst)
-      (ziploop (cons (map first lists) lst)
-               (map cdr lists)))))
+    (if (ormap empty? lists)
+        (reverse lst)
+        (ziploop (cons (map first lists) lst)
+                 (map cdr lists)))))
 
 (define (get-weight key val)
 "Gets the weight of a node in a tree of hashes. Leaf values
