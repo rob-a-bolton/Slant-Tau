@@ -36,11 +36,13 @@ input port."
 of keys"
   (let get-loop ((sub-map hashmap)
                  (keys keys))
-    (if (empty? keys)
-        sub-map
-        (if (hash? sub-map)
-            (get-loop (hash-ref sub-map (car keys) not-found) (cdr keys))
-            not-found))))
+    (cond
+      ((empty? keys)
+       sub-map)
+      ((hash? sub-map)
+       (get-loop (hash-ref sub-map (car keys) not-found) (cdr keys)))
+      (else
+       not-found))))
 
 (define (set-in *hashmap* keys val)
 "Sets a value in a set of nested hash maps using a list
@@ -49,13 +51,15 @@ of keys"
                  (keys keys))
     (let* ((key (first keys))
            (current-value (hash-ref *sub-map* key #f)))
-      (if (empty? (cdr keys))
-          (hash-set! *sub-map* key val)
-          (if (hash? current-value)
-              (set-loop current-value (cdr keys))
-              (let ((new-hash (make-hash)))
-                (hash-set! *sub-map* key new-hash)
-                (set-loop new-hash (cdr keys))))))))
+      (cond
+        ((empty? (cdr keys))
+         (hash-set! *sub-map* key val))
+        ((hash? current-value)
+         (set-loop current-value (cdr keys)))
+        (else
+         (let ((new-hash (make-hash)))
+           (hash-set! *sub-map* key new-hash)
+           (set-loop new-hash (cdr keys))))))))
 
 (define (update-word-hash *hash* words)
 "Increments (or creates) the number associated with a
@@ -72,17 +76,17 @@ nested set of words in a word hash"
                                (hash-union! v1 v2 #:combine/key merge-vals)
                                v1)))))
     (hash-union! *hash-1* hash-2 #:combine/key merge-vals)))
-
                      
 (define (train *hash* depth)
 "Modifies a word hash from the current input port."
   (let* ((g (word-generator)))
     (let train-loop ((words (list (g))))
-      (if (equal? 'end (first words))
-          *hash*
-          (if (< (length words) depth)
-              (train-loop (cons (g) words))
-              (begin
+      (cond
+        ((equal? 'end (first words))
+         *hash*)
+        ((< (length words) depth)
+              (train-loop (cons (g) words)))
+        ((begin
                 (update-word-hash *hash* (reverse words))
                 (train-loop (cons (g) (drop-right words 1)))))))))
 
@@ -118,9 +122,7 @@ hash and list of words."
     (let-values (((word weight) (apply values (car words))))
       (if (>= weight num)
           word
-          (loop (- num weight) (cdr words))))))
-        
-  
+          (loop (- num weight) (cdr words))))))  
 
 (define (choose-word word-hash words)
 "Picks a word based on the words already we already have."
