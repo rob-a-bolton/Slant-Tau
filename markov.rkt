@@ -12,10 +12,12 @@
 
 #lang racket
 
-(require racket/generator)
+(require racket/generator
+         racket/hash)
 
 (provide train
-         generate)
+         generate
+         merge-word-hashes)
 
 (define (word-generator)
 "Generator to output one word at a time from the current
@@ -60,6 +62,16 @@ of keys"
 nested set of words in a word hash"
   (let* ((current-value (get-in *hash* words 0)))
     (set-in *hash* words (+ current-value 1))))
+
+(define (merge-word-hashes *hash-1* hash-2)
+"Merges two word hashes"
+  (letrec ((merge-vals (λ (k v1 v2)
+                         (if (and (number? v1) (number? v2))
+                             (+ v1 v2)
+                             (begin
+                               (hash-union! v1 v2 #:combine/key merge-vals)
+                               v1)))))
+    (hash-union! *hash-1* hash-2 #:combine/key merge-vals)))
 
                      
 (define (train *hash* depth)
