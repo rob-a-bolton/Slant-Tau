@@ -85,10 +85,11 @@ nested set of words in a word hash"
         ((equal? 'end (first words))
          *hash*)
         ((< (length words) depth)
-              (train-loop (cons (g) words)))
-        ((begin
-                (update-word-hash *hash* (reverse words))
-                (train-loop (cons (g) (drop-right words 1)))))))))
+         (train-loop (cons (g) words)))
+        (else
+         (begin
+           (update-word-hash *hash* (reverse words))
+           (train-loop (cons (g) (drop-right words 1)))))))))
 
 (define (zip . lists)
 "Zips two or more lists together."
@@ -122,7 +123,7 @@ hash and list of words."
     (let-values (((word weight) (apply values (car words))))
       (if (>= weight num)
           word
-          (loop (- num weight) (cdr words))))))  
+          (loop (- num weight) (cdr words))))))
 
 (define (choose-word word-hash words)
 "Picks a word based on the words already we already have."
