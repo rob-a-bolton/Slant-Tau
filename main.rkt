@@ -93,7 +93,10 @@
        [("--max-threshold") number
                             "Sets the upper bound for minimum number of words to accept in word choice."
                             (add-op 'max-threshold number)]
-       
+       [("-s" "--seed")     number
+                            "Sets the random number generator's seed value."
+                            (add-op 'seed number)]
+         
        #:handlers (λ (args) (reverse (oplist)))
                   '()))) ; Inelegant, but required
   (let ([*word-hash* (make-hash)]
@@ -126,5 +129,7 @@
           ['min-threshold
            (min-threshold (string->number arg))]
           ['max-threshold
-           (max-threshold (string->number arg))]))))
+           (max-threshold (string->number arg))]
+          ['seed
+           (random-seed (string->number arg))]))))
   )
