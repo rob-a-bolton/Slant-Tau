@@ -87,10 +87,18 @@
        [("-e" "--export")   file-name
                             "Export training data to file."
                             (add-op 'export file-name)]
+       [("--min-threshold") number
+                            "Sets the lower bound for minimum number of words to accept in word choice."
+                            (add-op 'min-threshold number)]
+       [("--max-threshold") number
+                            "Sets the upper bound for minimum number of words to accept in word choice."
+                            (add-op 'max-threshold number)]
        
        #:handlers (λ (args) (reverse (oplist)))
                   '()))) ; Inelegant, but required
-  (let ([*word-hash* (make-hash)])
+  (let ([*word-hash* (make-hash)]
+        [min-threshold (make-parameter 1)]
+        [max-threshold (make-parameter 3)])
     (for ((op-pair operation-list))
       (let ((op (car op-pair))
             (arg (cdr op-pair)))
@@ -98,11 +106,15 @@
           ['train
            (with-input-from-file arg
              (λ ()
-               (train *word-hash* 5)))]
+               (train *word-hash* 10)))]
           ['generate
-           (display (generate *word-hash*
-                              3
-                              (string->number arg)))]
+           (begin
+             (display (generate *word-hash*
+                              9
+                              (string->number arg)
+                              (min-threshold)
+                              (max-threshold)))
+             (newline))]
           ['import
            (merge-word-hashes *word-hash*
                               (call-with-input-file arg
@@ -110,5 +122,9 @@
           ['export
            (call-with-output-file arg
              (λ (port)
-               (write *word-hash* port)))]))))
+               (write *word-hash* port)))]
+          ['min-threshold
+           (min-threshold (string->number arg))]
+          ['max-threshold
+           (max-threshold (string->number arg))]))))
   )

@@ -125,21 +125,29 @@ hash and list of words."
           word
           (loop (- num weight) (cdr words))))))
 
-(define (choose-word word-hash words)
+(define (choose-word word-hash words lower-threshold upper-threshold)
 "Picks a word based on the words already we already have."
-  (let ((weighted-words (get-weighted-words word-hash words)))
-    (if (not weighted-words)
-        #f
-        (choose-weighted-word weighted-words))))
+  (let gen-loop ((words words))
+    (let ((weighted-words (get-weighted-words word-hash words)))
+      (cond
+        ((and (not weighted-words) (= (length words) 1))
+         #f)
+        
+        ((and (or (not weighted-words) (> (random lower-threshold upper-threshold)
+                                          (length weighted-words)))
+              (> (length words) 1))
+         (gen-loop (drop words 1)))
+        (else
+         (choose-weighted-word weighted-words))))))
 
-(define (generate word-hash depth num-words)
+(define (generate word-hash depth num-words lower-threshold upper-threshold)
 "Generates a number of words using a word hash and given
 chain/state depth."
   (string-join
     (let gen-loop ((words '(start))
                    (current-length 1))
       (let* ((ordered-words (reverse (take words (min depth current-length))))
-             (word (choose-word word-hash ordered-words)))
+             (word (choose-word word-hash ordered-words lower-threshold upper-threshold)))
         (if (or (not word) (> current-length num-words))
             (drop (reverse words) 1)
             (gen-loop (cons word words) (+ current-length 1)))))
