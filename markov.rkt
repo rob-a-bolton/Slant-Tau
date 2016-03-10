@@ -162,7 +162,7 @@ hash and list of words."
       (cond
         ((and (not weighted-words) (= (length words) 1))
          #f)
-        ((and (or (not weighted-words) (> (random lower-threshold upper-threshold)
+        ((and (or (not weighted-words) (> (random lower-threshold (1+ upper-threshold))
                                           (length weighted-words)))
               (> (length words) 1))
          (gen-loop (drop words 1)))
