@@ -65,7 +65,7 @@ of keys"
 "Increments (or creates) the number associated with a
 nested set of words in a word hash"
   (let* ((current-value (get-in *hash* words 0)))
-    (set-in *hash* words (+ current-value 1))))
+    (set-in *hash* words (1+ current-value))))
 
 (define (merge-word-hashes *hash-1* hash-2)
 "Merges two word hashes"
@@ -118,7 +118,7 @@ hash and list of words."
 
 (define (choose-weighted-word weighted-words)
 "Picks a word at random from a weighted list of words."
-  (let loop ((num (random (foldl + 0 (map cadr weighted-words))))
+  (let loop ((num (random (1+ (foldl + 0 (map cadr weighted-words)))))
              (words weighted-words))
     (let-values (((word weight) (apply values (car words))))
       (if (>= weight num)
@@ -150,6 +150,5 @@ chain/state depth."
              (word (choose-word word-hash ordered-words lower-threshold upper-threshold)))
         (if (or (not word) (> current-length num-words))
             (drop (reverse words) 1)
-            (gen-loop (cons word words) (+ current-length 1)))))
-    " "))
+            (gen-loop (cons word words) (1+ current-length)))))))
 
