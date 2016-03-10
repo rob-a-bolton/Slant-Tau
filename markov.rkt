@@ -19,18 +19,44 @@
          generate
          merge-word-hashes)
 
+(define (consume-blank-lines)
+  (let consume ((newlines 0)
+                (line (read-line)))
+    (cond
+      ((eof-object? line)
+       (values newlines #f))
+      ((equal? line "")
+       (consume (+ newlines 1) (read-line)))
+      (else
+       (values newlines line)))))
+
+(define (1+ num)
+  (+ 1 num))
+
 (define (word-generator)
 "Generator to output one word at a time from the current
 input port."
   (generator ()
     (yield 'start)
-    (let loop ((line (read-line)))
-      (if (eof-object? line)
-          (yield 'end)
-          (begin
-            (for-each yield (string-split line))
-            (loop (read-line)))))))
-
+    (let-values (((newlines line) (consume-blank-lines)))         
+      (let gen-loop ((newlines newlines)
+                     (line line))
+        (cond
+          ((= newlines 1)
+           (yield 'break))
+          ((> newlines 1)
+           (begin (yield 'end) (yield 'start))))
+        (if (not line)
+            (yield #f)
+            (begin
+              (for-each yield (string-split line))
+              (let-values (((newlines line) (consume-blank-lines)))
+                (if (eof-object? line)
+                    (yield 'end)
+                    (begin
+                      (when line (yield 'line-break))                        
+                      (gen-loop newlines line))))))))))
+         
 (define (get-in hashmap keys (not-found #f))
 "Gets a value from a set of nested hash maps from a list
 of keys"
@@ -82,8 +108,12 @@ nested set of words in a word hash"
   (let* ((g (word-generator)))
     (let train-loop ((words (list (g))))
       (cond
-        ((equal? 'end (first words))
+        ((not (first words))
          *hash*)
+        ((and (> (length words) 1)
+              (equal? 'start (first words))
+              (equal? 'end (second words)))
+         (train-loop '(start)))
         ((< (length words) depth)
          (train-loop (cons (g) words)))
         (else
@@ -132,7 +162,6 @@ hash and list of words."
       (cond
         ((and (not weighted-words) (= (length words) 1))
          #f)
-        
         ((and (or (not weighted-words) (> (random lower-threshold upper-threshold)
                                           (length weighted-words)))
               (> (length words) 1))
@@ -140,10 +169,23 @@ hash and list of words."
         (else
          (choose-weighted-word weighted-words))))))
 
+(define (text-fold word output-text)
+  (match word
+    ((or "." "?" "," "!" ":" "-")
+     (string-append output-text word))
+    ((or 'break 'end)
+     (string-append output-text "\n\n"))
+    ('line-break
+     (string-append output-text "\n"))
+    ('start
+     output-text)
+    (_
+     (string-append output-text " " word))))
+
 (define (generate word-hash depth num-words lower-threshold upper-threshold)
 "Generates a number of words using a word hash and given
 chain/state depth."
-  (string-join
+  (foldl text-fold ""
     (let gen-loop ((words '(start))
                    (current-length 1))
       (let* ((ordered-words (reverse (take words (min depth current-length))))
