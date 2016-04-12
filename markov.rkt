@@ -34,21 +34,21 @@
 (define (1+ num)
   (+ 1 num))
 
-(define (make-word-cols depth)
+(define (make-word-query depth suffix)
   (string-join
    (map (λ (num)
-          (format "word_~a VARCHAR(32) REFERENCES words(word)"
-                  num))
-        (range depth))
-   ", "))
-
-(define (make-word-col-names depth)
-  (string-join
-   (map (λ (num)
-          (format "word_~a" num))
+          (format "word_~a ~a" num (or suffix "")))
         (range depth))
    ","))
-                  
+
+(define (make-word-cols depth)
+  (make-word-query depth "VARCHAR(32) REFERENCES words(word)"))
+
+(define (make-word-col-names depth)
+  (make-word-query depth))
+
+(define (make-word-select num-words)
+  (make-word-query num-words "= ?")) 
 
 (define (make-vals-template num-cols num-vals)
   (string-join (make-list num-vals
@@ -57,7 +57,6 @@
                                        #:before-first "("
                                        #:after-last ")"))
                ","))
-   
 
 (define (generate-table db-con depth)
   (query-exec db-con (string-append "CREATE TABLE IF NOT EXISTS words("
@@ -92,10 +91,6 @@ input port."
                       (when line (yield 'line-break))
                       (gen-loop newlines line))))))))))
 
-(define (merge-words hash-1 hash-2)
-"Merges two word hashes"
-  (hash-union hash-1 hash-2 #:combine/key (λ (k v1 v2) (+ v1 v2))))
-
 (define (get-unique-words word-hash)
 "Returns all the unique words in the word hash."
   (let ((unique-words (make-hash)))
@@ -121,55 +116,19 @@ input port."
                                       (make-vals-template (1+ depth) (hash-count word-hash)))))
     (apply query-exec (append (list db-con word-insert-query) unique-words))
     (apply query-exec (append (list db-con markov-insert-query) (get-word-insert-vals word-hash)))))
-          
-
-(define (make-word-query depth)
-  (let* ((q (format "SELECT w_id_~a")))
-    q))
 
 (define (get-words db-con words (not-found #f))
   (let* ((rows (query-rows db-con (make-word-query (length words)))))
     (if (> 0 (length rows))
         rows
         not-found)))
-    
-        
-   
-(define (get-in hashmap keys (not-found #f))
-"Gets a value from a set of nested hash maps from a list
-of keys"
-  (let get-loop ((sub-map hashmap)
-                 (keys keys))
-    (cond
-      ((empty? keys)
-       sub-map)
-      ((hash? sub-map)
-       (get-loop (hash-ref sub-map (car keys) not-found) (cdr keys)))
-      (else
-       not-found))))
 
-(define (set-in *hashmap* keys val)
-"Sets a value in a set of nested hash maps using a list
-of keys"
-  (let set-loop ((*sub-map* *hashmap*)
-                 (keys keys))
-    (let* ((key (first keys))
-           (current-value (hash-ref *sub-map* key #f)))
-      (cond
-        ((empty? (cdr keys))
-         (hash-set! *sub-map* key val))
-        ((hash? current-value)
-         (set-loop current-value (cdr keys)))
-        (else
-         (let ((new-hash (make-hash)))
-           (hash-set! *sub-map* key new-hash)
-           (set-loop new-hash (cdr keys))))))))
-
-(define (update-word-hash *hash* words)
-"Increments (or creates) the number associated with a
-nested set of words in a word hash"
-  (let* ((current-value (get-in *hash* words 0)))
-    (set-in *hash* words (1+ current-value))))
+(define (get-in db-con words)
+"Gets a value from the database using the given words."
+  (let ((word-query (format "SELECT word_~a, frequency FROM markov WHERE ~a"
+                            (length words)
+                            (make-word-select (length words)))))
+    (apply query-rows (append (list db-con word-query) words))))
 
 (define (merge-word-hashes *hash-1* hash-2)
 "Merges two word hashes"
@@ -196,7 +155,7 @@ nested set of words in a word hash"
          (train-loop (cons (g) words)))
         (else
          (begin
-           (update-word-hash *hash* (reverse words))
+;           (update-word-hash *hash* (reverse words))
            (train-loop (cons (g) (drop-right words 1)))))))))
 
 (define (zip . lists)
