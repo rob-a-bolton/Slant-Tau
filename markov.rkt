@@ -21,12 +21,12 @@
 
 (define (consume-blank-lines)
   (let consume ((newlines 0)
-                (line (read-line)))
+                (line (read-line (current-input-port) 'any)))
     (cond
       ((eof-object? line)
        (values newlines #f))
       ((equal? line "")
-       (consume (+ newlines 1) (read-line)))
+       (consume (1+ newlines) (read-line (current-input-port) 'any)))
       (else
        (values newlines line)))))
 
@@ -82,12 +82,12 @@ input port."
         (if (not line)
             (yield #f)
             (begin
-              (for-each yield (string-split (string-replace line #rx"[^A-Za-z0-9_ .?!,;:]" "")))
+              (for-each yield (string-split (string-replace line #rx"[^A-Za-z0-9_ .?!,;:'\"-]" "")))
               (let-values (((newlines line) (consume-blank-lines)))
                 (if (eof-object? line)
                     (yield "#_END")
                     (begin
-                      (when line (yield "#_LINE_BREAK"))
+                      (yield "#_LINE_BREAK")
                       (gen-loop newlines line))))))))))
 
 (define (get-unique-words word-hash)
@@ -104,7 +104,6 @@ input port."
 
 (define (upsert-words db-con word-hash depth)
 "Inserts or updates the given words in a database."
-;  (display (format "word-hash[~a]: ~a~%" depth word-hash))
   (let* ((unique-words (get-unique-words word-hash))
          (word-insert-query (format "INSERT IGNORE INTO words VALUES ~a"
                                    (make-vals-template 1 (length unique-words))))
@@ -113,8 +112,6 @@ input port."
               "VALUES ~a"
               "ON DUPLICATE KEY UPDATE frequency = frequency + VALUES(frequency)"))
                                       (make-vals-template (1+ depth) (hash-count word-hash)))))
-    ;; (display (format "words: ~a~%" (append (list db-con word-insert-query) unique-words)))
-    ;; (display (format "marko: ~a~%" (append (list db-con markov-insert-query) (get-word-insert-vals word-hash))))))
     (apply query-exec (append (list db-con word-insert-query) unique-words))
     (apply query-exec (append (list db-con markov-insert-query) (get-word-insert-vals word-hash)))))
 
