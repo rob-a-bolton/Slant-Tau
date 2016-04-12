@@ -4,6 +4,7 @@ pom.xml.asc
 *~
 \#*
 .\#*
+*.txt
 .DS_Store
 compiled
 *jar
