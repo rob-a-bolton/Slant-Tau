@@ -17,8 +17,7 @@
          db)
 
 (provide train
-         generate
-         merge-word-hashes)
+         generate)
 
 (define (consume-blank-lines)
   (let consume ((newlines 0)
@@ -34,21 +33,21 @@
 (define (1+ num)
   (+ 1 num))
 
-(define (make-word-query depth suffix)
+(define (make-word-query depth #:joiner (joiner ",") #:suffix (suffix ""))
   (string-join
    (map (λ (num)
           (format "word_~a ~a" num (or suffix "")))
         (range depth))
-   ","))
+   joiner))
 
 (define (make-word-cols depth)
-  (make-word-query depth "VARCHAR(32) REFERENCES words(word)"))
+  (make-word-query depth #:suffix "VARCHAR(32) REFERENCES words(word)"))
 
 (define (make-word-col-names depth)
   (make-word-query depth))
 
 (define (make-word-select num-words)
-  (make-word-query num-words "= ?")) 
+  (make-word-query num-words #:joiner " AND " #:suffix "= ?"))
 
 (define (make-vals-template num-cols num-vals)
   (string-join (make-list num-vals
@@ -71,24 +70,24 @@
 "Generator to output one word at a time from the current
 input port."
   (generator ()
-    (yield 'start)
+    (yield "#_START")
     (let-values (((newlines line) (consume-blank-lines)))
       (let gen-loop ((newlines newlines)
                      (line line))
         (cond
           ((= newlines 1)
-           (yield 'break))
+           (yield "#_BREAK"))
           ((> newlines 1)
-           (begin (yield 'end) (yield 'start))))
+           (begin (yield "#_END") (yield "#_START"))))
         (if (not line)
             (yield #f)
             (begin
-              (for-each yield (string-split line))
+              (for-each yield (string-split (string-replace line #rx"[^A-Za-z0-9_ .?!,;:]" "")))
               (let-values (((newlines line) (consume-blank-lines)))
                 (if (eof-object? line)
-                    (yield 'end)
+                    (yield "#_END")
                     (begin
-                      (when line (yield 'line-break))
+                      (when line (yield "#_LINE_BREAK"))
                       (gen-loop newlines line))))))))))
 
 (define (get-unique-words word-hash)
@@ -105,8 +104,8 @@ input port."
 
 (define (upsert-words db-con word-hash depth)
 "Inserts or updates the given words in a database."
-  (let* (;(updated-hash (merge-words word-hash (pull-words db-con word-hash)))
-         (unique-words (get-unique-words word-hash))
+;  (display (format "word-hash[~a]: ~a~%" depth word-hash))
+  (let* ((unique-words (get-unique-words word-hash))
          (word-insert-query (format "INSERT IGNORE INTO words VALUES ~a"
                                    (make-vals-template 1 (length unique-words))))
          (markov-insert-query (format (string-join (list
@@ -114,88 +113,56 @@ input port."
               "VALUES ~a"
               "ON DUPLICATE KEY UPDATE frequency = frequency + VALUES(frequency)"))
                                       (make-vals-template (1+ depth) (hash-count word-hash)))))
+    ;; (display (format "words: ~a~%" (append (list db-con word-insert-query) unique-words)))
+    ;; (display (format "marko: ~a~%" (append (list db-con markov-insert-query) (get-word-insert-vals word-hash))))))
     (apply query-exec (append (list db-con word-insert-query) unique-words))
     (apply query-exec (append (list db-con markov-insert-query) (get-word-insert-vals word-hash)))))
 
-(define (get-words db-con words (not-found #f))
-  (let* ((rows (query-rows db-con (make-word-query (length words)))))
-    (if (> 0 (length rows))
-        rows
-        not-found)))
-
 (define (get-in db-con words)
 "Gets a value from the database using the given words."
-  (let ((word-query (format "SELECT word_~a, frequency FROM markov WHERE ~a"
+  (let ((word-query (format "SELECT word_~a, SUM(frequency) FROM markov WHERE ~a GROUP BY word_~a"
                             (length words)
-                            (make-word-select (length words)))))
+                            (make-word-select (length words))
+                            (length words))))
     (apply query-rows (append (list db-con word-query) words))))
 
-(define (merge-word-hashes *hash-1* hash-2)
-"Merges two word hashes"
-  (letrec ((merge-vals (λ (k v1 v2)
-                         (if (and (number? v1) (number? v2))
-                             (+ v1 v2)
-                             (begin
-                               (hash-union! v1 v2 #:combine/key merge-vals)
-                               v1)))))
-    (hash-union! *hash-1* hash-2 #:combine/key merge-vals)))
-
-(define (train *hash* depth)
+(define (train db-con depth cache-size)
 "Modifies a word hash from the current input port."
-  (let* ((g (word-generator)))
+  (let* ((g (word-generator))
+         (word-hash (make-hash)))
     (let train-loop ((words (list (g))))
+      (when (or (not (first words))
+                (= (hash-count word-hash) cache-size))
+        (begin (upsert-words db-con word-hash depth)
+               (hash-clear! word-hash)))
       (cond
-        ((not (first words))
-         *hash*)
         ((and (> (length words) 1)
-              (equal? 'start (first words))
-              (equal? 'end (second words)))
-         (train-loop '(start)))
+              (equal? "#_START" (first words))
+              (equal? "#_END" (second words)))
+         (train-loop '("#_START")))
         ((< (length words) depth)
          (train-loop (cons (g) words)))
+        ((not (first words))
+         #t)
         (else
          (begin
-;           (update-word-hash *hash* (reverse words))
+           (hash-update! word-hash (reverse words) 1+ 1)
            (train-loop (cons (g) (drop-right words 1)))))))))
-
-(define (zip . lists)
-"Zips two or more lists together."
-  (let ziploop ((lst '())
-                (lists lists))
-    (if (ormap empty? lists)
-        (reverse lst)
-        (ziploop (cons (map first lists) lst)
-                 (map cdr lists)))))
-
-(define (get-weight key val)
-"Gets the weight of a node in a tree of hashes. Leaf values
-are expected to be a number."
-  (if (number? val)
-      val
-      (foldl + 0 (hash-map val get-weight))))
-
-(define (get-weighted-words word-hash words)
-"Gets a weighted list of potential words from a word
-hash and list of words."
-  (let ((word-tree (get-in word-hash words)))
-    (if (not word-tree)
-        #f
-        (zip (hash-keys word-tree)
-             (hash-map word-tree get-weight)))))
 
 (define (choose-weighted-word weighted-words)
 "Picks a word at random from a weighted list of words."
-  (let loop ((num (random (1+ (foldl + 0 (map cadr weighted-words)))))
-             (words weighted-words))
-    (let-values (((word weight) (apply values (car words))))
+(let loop ((num (random (1+ (foldl + 0 (map (λ (vec) (vector-ref vec 1)) weighted-words)))))
+           (words weighted-words))
+    (let ((word (vector-ref (car words) 0))
+          (weight (vector-ref (car words) 1)))
       (if (>= weight num)
           word
           (loop (- num weight) (cdr words))))))
 
-(define (choose-word word-hash words lower-threshold upper-threshold)
+(define (choose-word db-con words lower-threshold upper-threshold)
 "Picks a word based on the words already we already have."
   (let gen-loop ((words words))
-    (let ((weighted-words (get-weighted-words word-hash words)))
+    (let ((weighted-words (get-in db-con words)))
       (cond
         ((and (not weighted-words) (= (length words) 1))
          #f)
@@ -210,23 +177,23 @@ hash and list of words."
   (match word
     ((or "." "?" "," "!" ":" "-")
      (string-append output-text word))
-    ((or 'break 'end)
+    ((or "#_BREAK" "#_END")
      (string-append output-text "\n\n"))
-    ('line-break
+    ("#_LINE_BREAK"
      (string-append output-text "\n"))
-    ('start
+    ("#_START"
      output-text)
     (_
      (string-append output-text " " word))))
 
-(define (generate word-hash depth num-words lower-threshold upper-threshold)
+(define (generate db-con depth num-words lower-threshold upper-threshold)
 "Generates a number of words using a word hash and given
 chain/state depth."
   (foldl text-fold ""
-    (let gen-loop ((words '(start))
+    (let gen-loop ((words '("#_START"))
                    (current-length 1))
       (let* ((ordered-words (reverse (take words (min depth current-length))))
-             (word (choose-word word-hash ordered-words lower-threshold upper-threshold)))
+             (word (choose-word db-con ordered-words lower-threshold upper-threshold)))
         (if (or (not word) (> current-length num-words))
             (drop (reverse words) 1)
             (gen-loop (cons word words) (1+ current-length)))))))
