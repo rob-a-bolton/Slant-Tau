@@ -1,6 +1,6 @@
 ;; slant-tau
 ;; Copyright (c) 2016 Robert Alexander Bolton
-;; 
+;;
 ;; This package is distributed under the GNU Lesser General Public
 ;; License (LGPL).  This means that you can link slant-tau into proprietary
 ;; applications, provided you follow the rules stated in the LGPL.  You
@@ -13,7 +13,8 @@
 #lang racket
 
 (require racket/generator
-         racket/hash)
+         racket/hash
+         db)
 
 (provide train
          generate
@@ -33,12 +34,44 @@
 (define (1+ num)
   (+ 1 num))
 
+(define (make-word-cols depth)
+  (string-join
+   (map (λ (num)
+          (format "word_~a VARCHAR(32) REFERENCES words(word)"
+                  num))
+        (range depth))
+   ", "))
+
+(define (make-word-col-names depth)
+  (string-join
+   (map (λ (num)
+          (format "word_~a" num))
+        (range depth))
+   ","))
+                  
+
+(define (make-vals-template num-cols num-vals)
+  (string-join (make-list num-vals
+                          (string-join (make-list num-cols "?")
+                                       ","
+                                       #:before-first "("
+                                       #:after-last ")"))
+               ","))
+   
+
+(define (generate-table db-con depth)
+  (query-exec db-con (string-append "CREATE TABLE IF NOT EXISTS words("
+                                    "word VARCHAR(32) PRIMARY KEY"
+                                    ")"))
+  (query-exec db-con  "DROP TABLE IF EXISTS markov")
+  (query-exec db-con (format  "CREATE TABLE markov(~a, frequency INTEGER DEFAULT 0)" (make-word-cols depth))))
+
 (define (word-generator)
 "Generator to output one word at a time from the current
 input port."
   (generator ()
     (yield 'start)
-    (let-values (((newlines line) (consume-blank-lines)))         
+    (let-values (((newlines line) (consume-blank-lines)))
       (let gen-loop ((newlines newlines)
                      (line line))
         (cond
@@ -54,9 +87,60 @@ input port."
                 (if (eof-object? line)
                     (yield 'end)
                     (begin
-                      (when line (yield 'line-break))                        
+                      (when line (yield 'line-break))
                       (gen-loop newlines line))))))))))
-         
+
+(define (merge-words hash-1 hash-2)
+"Merges two word hashes"
+  (hash-union hash-1 hash-2 #:combine/key (λ (k v1 v2) (+ v1 v2))))
+
+(define (get-unique-words word-hash)
+"Returns all the unique words in the word hash."
+  (let ((unique-words (make-hash)))
+    (hash-for-each word-hash (λ (words freq)
+                               (for-each (λ (word)
+                                           (hash-set! unique-words word #t))
+                                         words)))
+    (hash-keys unique-words)))
+
+(define (get-word-insert-vals word-hash)
+  (flatten (hash->list word-hash)))
+
+(define (upsert-words db-con word-hash depth)
+"Inserts or updates the given words in a database."
+  (let* (;(updated-hash (merge-words word-hash (pull-words db-con word-hash)))
+         (unique-words (get-unique-words word-hash))
+         (word-insert-query (format "INSERT IGNORE INTO words VALUES ~a"
+                                   (make-vals-template 1 (length unique-words))))
+         (temp-insert-query (format "INSERT INTO markov_merge VALUES ~a"
+                                   (make-vals-template (1+ depth) (hash-count word-hash))))
+         (markov-insert-query (format "INSERT OR IGNORE INTO markov (~a) VALUES ~a"
+                                      (make-word-col-names depth)
+                                      (make-vals-template depth (hash-count word-hash))))
+         (markov-update-query (string-join (list
+              "UPDATE markov"
+              "NATURAL JOIN markov_merge"
+              "SET markov.frequency = markov.frequency + markov_merge.new_frequency"))))
+    (apply query-exec (append (list db-con word-insert-query) unique-words))
+    (query-exec db-con "DROP TABLE IF EXISTS markov_merge")
+    (query-exec db-con (format "CREATE TABLE markov_merge(~a, new_frequency INTEGER)" (make-word-cols depth)))
+    (apply query-exec (append (list db-con temp-insert-query) (get-word-insert-vals word-hash)))
+    (apply query-exec (append (list db-con markov-insert-query) (flatten (hash-keys word-hash))))
+    (query-exec db-con markov-update-query)))
+          
+
+(define (make-word-query depth)
+  (let* ((q (format "SELECT w_id_~a")))
+    q))
+
+(define (get-words db-con words (not-found #f))
+  (let* ((rows (query-rows db-con (make-word-query (length words)))))
+    (if (> 0 (length rows))
+        rows
+        not-found)))
+    
+        
+   
 (define (get-in hashmap keys (not-found #f))
 "Gets a value from a set of nested hash maps from a list
 of keys"
@@ -102,7 +186,7 @@ nested set of words in a word hash"
                                (hash-union! v1 v2 #:combine/key merge-vals)
                                v1)))))
     (hash-union! *hash-1* hash-2 #:combine/key merge-vals)))
-                     
+
 (define (train *hash* depth)
 "Modifies a word hash from the current input port."
   (let* ((g (word-generator)))
@@ -193,4 +277,3 @@ chain/state depth."
         (if (or (not word) (> current-length num-words))
             (drop (reverse words) 1)
             (gen-loop (cons word words) (1+ current-length)))))))
-
