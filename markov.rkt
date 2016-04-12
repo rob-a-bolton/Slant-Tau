@@ -64,7 +64,9 @@
                                     "word VARCHAR(32) PRIMARY KEY"
                                     ")"))
   (query-exec db-con  "DROP TABLE IF EXISTS markov")
-  (query-exec db-con (format  "CREATE TABLE markov(~a, frequency INTEGER DEFAULT 0)" (make-word-cols depth))))
+  (query-exec db-con (format "CREATE TABLE markov(~a, frequency INTEGER DEFAULT 0, UNIQUE KEY words (~a))"
+                             (make-word-cols depth)
+                             (make-word-col-names depth))))
 
 (define (word-generator)
 "Generator to output one word at a time from the current
@@ -112,21 +114,13 @@ input port."
          (unique-words (get-unique-words word-hash))
          (word-insert-query (format "INSERT IGNORE INTO words VALUES ~a"
                                    (make-vals-template 1 (length unique-words))))
-         (temp-insert-query (format "INSERT INTO markov_merge VALUES ~a"
-                                   (make-vals-template (1+ depth) (hash-count word-hash))))
-         (markov-insert-query (format "INSERT OR IGNORE INTO markov (~a) VALUES ~a"
-                                      (make-word-col-names depth)
-                                      (make-vals-template depth (hash-count word-hash))))
-         (markov-update-query (string-join (list
-              "UPDATE markov"
-              "NATURAL JOIN markov_merge"
-              "SET markov.frequency = markov.frequency + markov_merge.new_frequency"))))
+         (markov-insert-query (format (string-join (list
+              "INSERT INTO markov"
+              "VALUES ~a"
+              "ON DUPLICATE KEY UPDATE frequency = frequency + VALUES(frequency)"))
+                                      (make-vals-template (1+ depth) (hash-count word-hash)))))
     (apply query-exec (append (list db-con word-insert-query) unique-words))
-    (query-exec db-con "DROP TABLE IF EXISTS markov_merge")
-    (query-exec db-con (format "CREATE TABLE markov_merge(~a, new_frequency INTEGER)" (make-word-cols depth)))
-    (apply query-exec (append (list db-con temp-insert-query) (get-word-insert-vals word-hash)))
-    (apply query-exec (append (list db-con markov-insert-query) (flatten (hash-keys word-hash))))
-    (query-exec db-con markov-update-query)))
+    (apply query-exec (append (list db-con markov-insert-query) (get-word-insert-vals word-hash)))))
           
 
 (define (make-word-query depth)
