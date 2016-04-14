@@ -148,13 +148,15 @@ input port."
 
 (define (choose-weighted-word weighted-words)
 "Picks a word at random from a weighted list of words."
-(let loop ((num (random (1+ (foldl + 0 (map (λ (vec) (vector-ref vec 1)) weighted-words)))))
-           (words weighted-words))
-    (let ((word (vector-ref (car words) 0))
-          (weight (vector-ref (car words) 1)))
-      (if (>= weight num)
-          word
-          (loop (- num weight) (cdr words))))))
+  (if (not (empty? weighted-words))
+      (let loop ((num (random (1+ (foldl + 0 (map (λ (vec) (vector-ref vec 1)) weighted-words)))))
+                 (words weighted-words))
+        (let ((word (vector-ref (car words) 0))
+              (weight (vector-ref (car words) 1)))
+          (if (>= weight num)
+              word
+              (loop (- num weight) (cdr words)))))
+      #f))
 
 (define (choose-word db-con words lower-threshold upper-threshold)
 "Picks a word based on the words already we already have."
