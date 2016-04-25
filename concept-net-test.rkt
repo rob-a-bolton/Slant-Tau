@@ -31,13 +31,21 @@
     (let ((toast-page (json-get concept-net-host
                                 (url concept-net-url
                                      "c" "en" "toast")))
-          (toast-def (cn:get-def "toast")))
+          (toast-def (cn:get-concept "toast")))
       (test-true "Connection possible"
-                 (jsexpr? toast-page))
-      (test-true "get-def gets definition"
-                 (equal? toast-page
-                         toast-def)))))
-      
-      
-    
-  
+        (jsexpr? toast-page))
+      (test-true "get-concept gets definition"
+        (equal? toast-page
+                toast-def))
+      (test-equal? "search works"
+        (map (λ (edge)
+               (cons (hash-ref edge 'rel)
+                     (hash-ref edge 'surfaceEnd)))
+             (hash-ref (cn:search '((start . "/c/en/toast/")
+                                    (rel . "/r/MadeOf/")))
+                       'edges))
+        '(("/r/MadeOf" . "bread"))))))
+
+
+
+

@@ -16,22 +16,49 @@
          net/url
          json)
 
-(provide get-def)
+(provide get-concept
+         search)
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))
-(define def-net-url  (make-parameter "http://conceptnet5.media.mit.edu/data/5.4"))
+(define def-net-port (make-parameter #f))
+(define def-data-ver  (make-parameter "5.4"))
 (define def-lang (make-parameter "en"))
+(define def-limit (make-parameter 50))
 
 (define (parts->url . parts)
   (string->url (string-join parts "/")))
 
-(define (get-def concept
-                 (host (def-net-host))
-                 (url (def-net-url))
-                 (lang (def-lang)))
-  (call/input-url (parts->url url "c" lang concept)
-                  get-pure-port
-    (λ (port)
-      (read-json port))))
+(define (get-concept concept
+                     (lang (def-lang))
+                     (host (def-net-host))
+                     (port (def-net-port))
+                     (ver (def-data-ver)))
+  (let ((concept-url (make-url
+                      "http"
+                      #f
+                      host
+                      port
+                      #t
+                      (map (curryr path/param '())
+                           (list "data" ver "c" lang concept))
+                      '()
+                      #f)))
+    (call/input-url concept-url get-pure-port read-json)))
 
-                    
+(define (search terms
+                (lang (def-lang))
+                (host (def-net-host))
+                (port (def-net-port))
+                (ver (def-data-ver)))
+  (let ((search-url (make-url "http"
+                              #f
+                              host
+                              port
+                              #t
+                              (map (curryr path/param '())
+                                   (list "data" ver "search"))
+                              terms
+                              #f)))
+    (call/input-url search-url get-pure-port read-json)))
+                      
+    
