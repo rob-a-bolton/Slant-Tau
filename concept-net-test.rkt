@@ -51,7 +51,7 @@
                                 (url concept-net-url
                                      "assoc" "list"
                                      "toast?filter=/c/en/&limit=5")))
-        (t-assocs-lib (cn:get-related "toast" 5)))
+        (t-assocs-lib (cn:get-related (list "toast") 5)))
     (test-equal? "get-related works"
                  t-assocs-raw
                  t-assocs-lib)))
