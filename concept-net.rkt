@@ -16,7 +16,12 @@
          net/url
          json)
 
-(provide get-concept
+(provide def-net-host
+         def-net-port
+         def-data-ver
+         def-lang
+         def-limit
+         get-concept
          search)
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))
@@ -60,5 +65,24 @@
                               terms
                               #f)))
     (call/input-url search-url get-pure-port read-json)))
-                      
-    
+
+(define (get-related words
+                     num-results
+                     (lang (def-lang))
+                     (host (def-net-host))
+                     (port (def-net-port))
+                     (ver (def-data-ver)))
+  (let* ((path-elems (list "data" ver "assoc" "list" lang
+                           (string-join words ",")))
+         (params `((filter . ,(string-append "/c/" lang))
+                   (limit . ,(number->string num-results))))
+         (query-url (make-url "http"
+                              #f
+                              host
+                              port
+                              #t
+                              (map (curryr path/param '())
+                                   path-elems)
+                              params
+                              #f)))
+    (call/input-url query-url get-pure-port read-json)))
