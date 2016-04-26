@@ -22,6 +22,7 @@
          def-lang
          def-limit
          get-concept
+         get-related
          search)
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))

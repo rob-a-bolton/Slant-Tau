@@ -44,12 +44,12 @@
            (hash-ref (cn:search '((start . "/c/en/toast/")
                                   (rel . "/r/MadeOf/")))
                      'edges))
-      '(("/r/MadeOf" . "bread"))))))
+      '(("/r/MadeOf" . "bread")))))
 
 (test-begin
   (let ((t-assocs-raw (json-get concept-net-host
                                 (url concept-net-url
-                                     "assoc" "list"
+                                     "assoc" "list" "en"
                                      "toast?filter=/c/en/&limit=5")))
         (t-assocs-lib (cn:get-related (list "toast") 5)))
     (test-equal? "get-related works"
