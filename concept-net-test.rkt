@@ -25,27 +25,36 @@
   (let-values (((status header port) (http-sendrecv host url)))
     (read-json port)))
 
+(define concept-net-host "conceptnet5.media.mit.edu")
+(define concept-net-url "http://conceptnet5.media.mit.edu/data/5.4")
 (test-begin
-  (let ((concept-net-host "conceptnet5.media.mit.edu")
-        (concept-net-url "http://conceptnet5.media.mit.edu/data/5.4"))
-    (let ((toast-page (json-get concept-net-host
-                                (url concept-net-url
-                                     "c" "en" "toast")))
-          (toast-def (cn:get-concept "toast")))
-      (test-true "Connection possible"
-        (jsexpr? toast-page))
-      (test-true "get-concept gets definition"
-        (equal? toast-page
-                toast-def))
-      (test-equal? "search works"
-        (map (λ (edge)
-               (cons (hash-ref edge 'rel)
-                     (hash-ref edge 'surfaceEnd)))
-             (hash-ref (cn:search '((start . "/c/en/toast/")
-                                    (rel . "/r/MadeOf/")))
-                       'edges))
-        '(("/r/MadeOf" . "bread"))))))
+  (let ((toast-page (json-get concept-net-host
+                              (url concept-net-url
+                                   "c" "en" "toast")))
+        (toast-def (cn:get-concept "toast")))
+    (test-true "Connection possible"
+      (jsexpr? toast-page))
+    (test-true "get-concept gets definition"
+      (equal? toast-page
+              toast-def))
+    (test-equal? "search works"
+      (map (λ (edge)
+             (cons (hash-ref edge 'rel)
+                   (hash-ref edge 'surfaceEnd)))
+           (hash-ref (cn:search '((start . "/c/en/toast/")
+                                  (rel . "/r/MadeOf/")))
+                     'edges))
+      '(("/r/MadeOf" . "bread"))))))
 
+(test-begin
+  (let ((t-assocs-raw (json-get concept-net-host
+                                (url concept-net-url
+                                     "assoc" "list"
+                                     "toast?filter=/c/en/&limit=5")))
+        (t-assocs-lib (cn:get-related "toast" 5)))
+    (test-equal? "get-related works"
+                 t-assocs-raw
+                 t-assocs-lib)))
 
 
 
