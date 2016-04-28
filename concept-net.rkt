@@ -14,6 +14,7 @@
 
 (require net/http-client
          net/url
+         racket/set
          json)
 
 (provide def-net-host
@@ -23,6 +24,7 @@
          def-limit
          get-concept
          get-related
+         get-word-types
          search)
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))
@@ -87,3 +89,38 @@
                               params
                               #f)))
     (call/input-url query-url get-pure-port read-json)))
+
+(define (filter-irrelevant edge-hash word)
+  (let ((new-edges
+         (filter (λ (edge)
+                   (or (equal? (hash-ref edge 'surfaceStart) word)
+                       (equal? (hash-ref edge 'surfaceEnd) word)))
+                 (hash-ref edge-hash 'edges))))
+    (hash-set* edge-hash 'edges new-edges
+                         'numFound (length new-edges))))
+
+(define (get-word-types word
+                        (types '("n" "v" "a"))
+                        (lang (def-lang))
+                        (host (def-net-host))
+                        (port (def-net-port))
+                        (ver (def-data-ver)))
+  (let ((query-type
+         (λ (type) (call/input-url
+                     (make-url
+                        "http"
+                        #f
+                        host
+                        port
+                        #t
+                        (map (curryr path/param '())
+                             (list "data" ver "c" lang word type))
+                        '()
+                        #f)
+                     get-pure-port
+                     (λ (port)
+                       (let ((result (filter-irrelevant (read-json port) word)))
+                         (if (> (hash-ref result 'numFound) 0)
+                             type
+                             #f)))))))
+  (list->set (filter (compose not false?) (map query-type types)))))
