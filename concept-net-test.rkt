@@ -56,5 +56,12 @@
                  t-assocs-raw
                  t-assocs-lib)))
 
+(test-begin
+  (let ((toast-types (set "v" "n"))
+        (toast-types-lib (cn:get-word-types "toast")))
+    (test-equal? "get-types gets right types for toast"
+                 toast-types
+                 toast-types-lib)))
+
 
 
