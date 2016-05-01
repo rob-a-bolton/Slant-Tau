@@ -47,10 +47,11 @@
       '(("/r/MadeOf" . "bread")))))
 
 (test-begin
-  (let ((t-assocs-raw (json-get concept-net-host
-                                (url concept-net-url
-                                     "assoc" "list" "en"
-                                     "toast?filter=/c/en/&limit=5")))
+  (let ((t-assocs-raw '(("toast" . 0.9991357567601089)
+                        ("toaster" . 0.913973388310328)
+                        ("breadcrumb" . 0.9001408372514137)
+                        ("challah" . 0.8989284602769767)
+                        ("laverbread" . 0.895879098474489)))
         (t-assocs-lib (cn:get-related (list "toast") 5)))
     (test-equal? "get-related works"
                  t-assocs-raw
@@ -62,6 +63,3 @@
     (test-equal? "get-types gets right types for toast"
                  toast-types
                  toast-types-lib)))
-
-
-

@@ -88,7 +88,13 @@
                                    path-elems)
                               params
                               #f)))
-    (call/input-url query-url get-pure-port read-json)))
+    (call/input-url query-url get-pure-port
+      (λ (port)
+        (let ((json-data (read-json port)))
+          (map (λ (pair)
+                 (cons (last (string-split (car pair) "/"))
+                       (cadr pair)))
+               (hash-ref json-data 'similar)))))))
 
 (define (filter-irrelevant edge-hash word)
   (let ((new-edges
