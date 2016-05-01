@@ -17,6 +17,7 @@
          db)
 
 (provide train
+         generate-tables
          generate)
 
 (define (consume-blank-lines)
@@ -57,7 +58,7 @@
                                        #:after-last ")"))
                ","))
 
-(define (generate-table db-con depth)
+(define (generate-tables db-con depth)
   (query-exec db-con (string-append "CREATE TABLE IF NOT EXISTS words("
                                     "word VARCHAR(32) PRIMARY KEY"
                                     ")"))
@@ -191,7 +192,7 @@ chain/state depth."
   (foldl text-fold ""
     (let gen-loop ((words '("#_START"))
                    (current-length 1))
-      (let* ((ordered-words (reverse (take words (min depth current-length))))
+      (let* ((ordered-words (reverse (take words (min (- depth 1) current-length))))
              (word (choose-word db-con ordered-words lower-threshold upper-threshold)))
         (if (or (not word) (> current-length num-words))
             (drop (reverse words) 1)

@@ -13,18 +13,23 @@
 #lang racket/base
 
 (require rackunit
+         db
          "markov.rkt")
 
 ;; Test generation using test data
+
+(define db-con (mysql-connect #:database "slant_tau_test" #:user "markov" #:password "markov"))
+
 (test-begin
-  (let ([my-hash (make-weak-hash)]
-        [depth 4]
+  (let ([depth 4]
         [num-words 100])
+    (generate-tables db-con depth)
     (with-input-from-file "data/test-data.txt"
       (lambda ()
-        (train my-hash depth)))
-    (check > (length (hash-keys my-hash)) 0)
-    (check > (string-length (generate my-hash
+        (train db-con depth 1000)))
+    (check > (string-length (generate db-con
                                       (- depth 1)
-                                      num-words))
-           0)))
+                                      num-words
+                                      1
+                                      3))
+             0)))
