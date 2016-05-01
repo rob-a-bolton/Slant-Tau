@@ -25,6 +25,7 @@
          get-concept
          get-related
          get-word-types
+         split-words-by-type
          search)
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))
@@ -129,4 +130,23 @@
                          (if (> (hash-ref result 'numFound) 0)
                              type
                              #f)))))))
-  (list->set (filter (compose not false?) (map query-type types)))))
+    (list->set (filter (compose not false?) (map query-type types)))))
+
+(define (split-words-by-type words
+                             (types '("n" "v" "a"))
+                             (lang (def-lang))
+                             (host (def-net-host))
+                             (port (def-net-port))
+                             (ver (def-data-ver)))
+  (let ((type-hash (make-hash)))
+    (for-each (λ (type)
+                (hash-set! type-hash type (mutable-set)))
+              types)
+    (for-each (λ (word)
+                (set-for-each
+                  (get-word-types word)
+                  (λ (type)
+                    (set-add! (hash-ref type-hash type)
+                              word))))
+              words)
+    type-hash))

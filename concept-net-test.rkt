@@ -35,16 +35,17 @@
     (test-true "Connection possible"
       (jsexpr? toast-page))
     (test-true "get-concept gets definition"
-      (equal? toast-page
-              toast-def))
+      (equal? toast-def
+              toast-page))
     (test-equal? "search works"
+      '(("/r/MadeOf" . "bread"))
       (map (λ (edge)
              (cons (hash-ref edge 'rel)
                    (hash-ref edge 'surfaceEnd)))
            (hash-ref (cn:search '((start . "/c/en/toast/")
                                   (rel . "/r/MadeOf/")))
-                     'edges))
-      '(("/r/MadeOf" . "bread")))))
+                     'edges)))))
+      
 
 (test-begin
   (let ((t-assocs-raw '(("toast" . 0.9991357567601089)
@@ -54,12 +55,21 @@
                         ("laverbread" . 0.895879098474489)))
         (t-assocs-lib (cn:get-related (list "toast") 5)))
     (test-equal? "get-related works"
-                 t-assocs-raw
-                 t-assocs-lib)))
+                 t-assocs-lib
+                 t-assocs-raw)))
 
 (test-begin
   (let ((toast-types (set "v" "n"))
         (toast-types-lib (cn:get-word-types "toast")))
     (test-equal? "get-types gets right types for toast"
-                 toast-types
-                 toast-types-lib)))
+                 toast-types-lib
+                 toast-types)))
+
+(test-begin
+  (let ((expected-types (make-hash `(("a" . ,(mutable-set))
+                                     ("v" . ,(mutable-set "toast"))
+                                     ("n" . ,(mutable-set "toast")))))
+        (split-types (cn:split-words-by-type (list "toast"))))
+    (test-equal? "split-word-by-type correctly splits toast"
+                 split-types
+                 expected-types)))
