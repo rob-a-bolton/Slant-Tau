@@ -186,7 +186,13 @@ input port."
     (_
      (string-append output-text " " word))))
 
-(define (generate db-con depth num-words lower-threshold upper-threshold (theme-words #f))
+(define (generate db-con
+                  depth
+                  num-words
+                  lower-threshold
+                  upper-threshold
+                  (theme-words #f)
+                  (replacement-chance 0.5))
 "Generates a number of words using a word hash and given
 chain/state depth."
   (let ((first-pass
@@ -206,5 +212,7 @@ chain/state depth."
             (gen-loop (cons word words) (1+ current-length)))))))
     (foldl text-fold ""
                (if theme-words
-                   (replace-words first-pass theme-words)
+                   (replace-words first-pass
+                                  theme-words
+                                  replacement-chance)
                    first-pass))))

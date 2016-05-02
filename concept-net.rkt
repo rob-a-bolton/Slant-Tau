@@ -184,9 +184,14 @@ these categories."
           "_" " ")
         word)))
 
-(define (replace-words words theme-words (mult 3))
+(define (replace-words words
+                       theme-words
+                       (replacement-chance 0.5)
+                       (word-pool 3))
 "Replaces as many words as possible by substituting them from
- a set of new words generated from a list of theme words."
+ a set of new words generated from a list of theme words. word-pool
+ is a multiplier against the number of words to produce a pool of
+ replacements."
   (let* ((replaceable-words
           (filter (compose not
                            (curry set-member? unreplaceable-words))
@@ -195,9 +200,10 @@ these categories."
           (split-words-by-type
            (map car (get-related
                       theme-words
-                      (* mult (length replaceable-words)))))))
+                      (* word-pool (length replaceable-words)))))))
     (map (λ (word)
-           (if (set-member? replaceable-words word)
+           (if (and (set-member? replaceable-words word)
+                    (> (random) replacement-chance))
                (replace-word replacement-words word)
                word))
          words)))
