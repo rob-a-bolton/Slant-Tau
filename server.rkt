@@ -14,17 +14,23 @@
 
 (require web-server/servlet
          web-server/servlet-env
-         web-server/dispatch)
+         web-server/dispatch
+         json
+         "markov.rkt"
+         db)
 
 (define-values (slant-dispatch slant-urls)
   (dispatch-rules
-   [("train") train-data]
+   [("train") #:method "post" train-data]
    [("generate") generate-poem]
    [("def.css") serve-css]
    [("app.js") serve-app-js]
    [else serve-index]))
 
 (define root-dir (path->string (current-directory)))
+(define db-con (mysql-connect #:database "slant_tau_web"
+                              #:user "slant-tau"
+                              #:password "slant-tau"))
 
 (define (get-file name)
   (string-append root-dir "/" name))
@@ -38,21 +44,47 @@
            (script ((src "app.js"))))
      (body
       (main (div ((id "generate-box"))
-                 (form
-                  (fieldset
+                  (form ((onsubmit "uploadFile(); return false;"))
                    (legend "Upload")
                    "Input text:" (br)
-                   (input ((name "file") (type "file")))
-                   (input ((type "submit"))))
-                  (fieldset
+                   (input ((id "file")
+                           (name "file-name")
+                           (type "file")))
+                   (input ((id "file-upload-button")
+                           (type "submit"))))
+                  (form ((onsubmit "generate(); return false;"))
                    (legend "Generate")
                    "Length:" (br)
-                   (input ((name "length") (type "number")))
-                   (input ((type "submit")))))))))))
+                   (input ((id "filename")
+                           (name "length")
+                           (type "number")
+                           (min "1")
+                           (max "500")))
+                   (input ((id "generate-button")
+                           (type "submit"))))))))))
 
 (define (train-data req)
-  (response/xexpr
-   `(body "uh oh")))
+  (if (not (request-post-data/raw req))
+           (response 405 #"No POST data"
+                     (current-seconds)
+                     #f '() void)
+           (let ((data (bytes->string/utf-8 (request-post-data/raw req))))
+             (response 200 #"OK"
+                       (current-seconds)
+                       #"application/json"
+                       '()
+                       (curry try-train data)))))
+
+(define (try-train data port)
+  (write-json
+   (hash 'successful
+         (with-handlers
+           ([exn:fail? (λ (exn) #f)])
+           (with-input-from-string data
+             (λ ()
+               (train db-con 8 1000)
+               #t))))
+   port))
 
 (define (generate-poem req)
   (response/xexpr
@@ -81,5 +113,5 @@
                   void))))
 
 (serve/servlet slant-dispatch
-               #:stateless? #t
+               #:launch-browser? #f
                #:servlet-regexp #rx"")
