@@ -92,6 +92,9 @@
        [("-G" "--generate-tables")
           "Sets up the MySQL database for training, with given depht."
           (command 'generate-tables)]
+       [("--drop-tables")
+          "Drops the database tables, clearing trained data."
+          (command 'drop-table)]
        #:once-each
        [("-V" "--version") "Prints the program version."
                            (begin
@@ -160,5 +163,7 @@
                                     (theme-words)
                                     (replace-chance))))
               ((equal? (command) 'generate-tables)
-               (generate-table db-con (depth)))))))
+               (generate-table db-con (depth)))
+              ((equal? (command) 'drop-tables)
+               (drop-tables))))))
   )

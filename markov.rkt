@@ -19,6 +19,7 @@
 
 (provide train
          generate-table
+         drop-tables
          generate)
 
 (define (consume-blank-lines)
@@ -67,6 +68,10 @@
   (query-exec db-con (format "CREATE TABLE markov(~a, frequency INTEGER DEFAULT 0, UNIQUE KEY words (~a))"
                              (make-word-cols depth)
                              (make-word-col-names depth))))
+
+(define (drop-tables db-con)
+  (query-exec db-con "DROP TABLE IF EXISTS markov")
+  (query-exec db-con "DROP TABLE IF EXISTS words"))
 
 (define (word-generator)
 "Generator to output one word at a time from the current
