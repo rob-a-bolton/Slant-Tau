@@ -18,6 +18,7 @@
          db)
 
 (provide train
+         generate-table
          generate)
 
 (define (consume-blank-lines)
@@ -198,7 +199,7 @@ chain/state depth."
   (let ((first-pass
     (let gen-loop ((words '("#_START"))
                    (current-length 1))
-      (let* ((ordered-words (reverse (take words (min depth current-length))))
+      (let* ((ordered-words (reverse (take words (min (- depth 1) current-length))))
              (word (choose-word db-con ordered-words lower-threshold upper-threshold)))
         (if (or (not word)
                 (or (and (> current-length num-words)
