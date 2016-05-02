@@ -117,34 +117,38 @@ can handle."
                          'numFound (length new-edges))))
 
 (define (get-word-types word
-                        (types '("n" "v" "a"))
                         (lang (def-lang))
                         (host (def-net-host))
                         (port (def-net-port))
                         (ver (def-data-ver)))
 "Returns the types of ways a word can be used."
-  (let ((query-type
-         (λ (type) (call/input-url
-                     (make-url
-                        "http"
-                        #f
-                        host
-                        port
-                        #t
-                        (map (curryr path/param '())
-                             (list "data" ver "c" lang word type))
-                        '()
-                        #f)
-                     get-pure-port
-                     (λ (port)
-                       (let ((result (filter-irrelevant (read-json port) word)))
-                         (if (> (hash-ref result 'numFound) 0)
-                             type
-                             #f)))))))
-    (list->set (filter (compose not false?) (map query-type types)))))
+  (call/input-url
+    (make-url "http"
+              #f
+              host
+              port
+              #t
+              (map (curryr path/param '())
+                   (list "data" ver "c" lang word))
+              '()
+              #f)
+    get-pure-port
+    (λ (port)
+      (let ((edges (hash-ref (read-json port) 'edges)))
+        (list->set
+         (filter (compose not false?)
+           (map (λ (edge)
+                  (let ((end (string-split (hash-ref edge 'end)
+                                           "/")))
+                    (if (and (> (length end) 3)
+                             (equal? (take end 3)
+                                     (list "c" lang word)))
+                        (list-ref end 3)
+                        #f)))
+                edges)))))))
+;    (list->set (filter (compose not false?) (map query-type types)))))
 
 (define (split-words-by-type words
-                             (types '("n" "v" "a"))
                              (lang (def-lang))
                              (host (def-net-host))
                              (port (def-net-port))
@@ -153,19 +157,16 @@ can handle."
 containing all of the given words which belong in one of
 these categories."
   (let ((type-hash (make-hash)))
-    (for-each (λ (type)
-                (hash-set! type-hash type (set)))
-              types)
-    (for-each (λ (word)
-                (set-for-each
-                  (get-word-types word)
-                  (λ (type)
-                    (hash-set! type-hash type
-                               (set-add (hash-ref type-hash type)
-                                        word)))))
-              words)
+    (for-each
+     (λ (word)
+       (set-for-each (get-word-types word)
+         (λ (type)
+           (when (not (hash-has-key? type-hash type))
+             (hash-set! type-hash type (mutable-set)))
+           (set-add! (hash-ref type-hash type)
+                     word))))
+     words)
     type-hash))
-
 
 (define (replace-word replacements word)
 "Replaces a single word from a set of replacements."
