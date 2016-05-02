@@ -1,0 +1,9 @@
+main {
+    width: 30em;
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: stretch;
+    margin: auto;
+}
+
