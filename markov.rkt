@@ -14,6 +14,7 @@
 
 (require racket/generator
          racket/hash
+         "concept-net.rkt"
          db)
 
 (provide train
@@ -185,14 +186,20 @@ input port."
     (_
      (string-append output-text " " word))))
 
-(define (generate db-con depth num-words lower-threshold upper-threshold)
+(define (generate db-con depth num-words lower-threshold upper-threshold (theme-words #f))
 "Generates a number of words using a word hash and given
 chain/state depth."
-  (foldl text-fold ""
+  (let ((first-pass
     (let gen-loop ((words '("#_START"))
                    (current-length 1))
       (let* ((ordered-words (reverse (take words (min depth current-length))))
              (word (choose-word db-con ordered-words lower-threshold upper-threshold)))
-        (if (or (not word) (> current-length num-words))
+        (if (or (not word) (and (> current-length num-words)
+                                (or (equal? word "#_END")
+                                    (equal? word "#_BREAK"))))
             (drop (reverse words) 1)
             (gen-loop (cons word words) (1+ current-length)))))))
+    (foldl text-fold ""
+               (if theme-words
+                   (replace-words first-pass theme-words)
+                   first-pass))))

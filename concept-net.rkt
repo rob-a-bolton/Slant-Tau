@@ -26,7 +26,12 @@
          get-related
          get-word-types
          split-words-by-type
+         replace-words
          search)
+
+(define unreplaceable-words
+  (set "." "?" "," "!" ":" "-"
+       "#_BREAK" "#_END" "#_START" "#_LINE_BREAK"))
 
 (define def-net-host (make-parameter "conceptnet5.media.mit.edu"))
 (define def-net-port (make-parameter #f))
@@ -42,6 +47,7 @@
                      (host (def-net-host))
                      (port (def-net-port))
                      (ver (def-data-ver)))
+"Returns some edges for a concept."
   (let ((concept-url (make-url
                       "http"
                       #f
@@ -59,6 +65,9 @@
                 (host (def-net-host))
                 (port (def-net-port))
                 (ver (def-data-ver)))
+"Searches ConceptNet using the given terms. Consult the 
+ConceptNet wiki for information on what terms the search URI
+can handle."
   (let ((search-url (make-url "http"
                               #f
                               host
@@ -76,6 +85,7 @@
                      (host (def-net-host))
                      (port (def-net-port))
                      (ver (def-data-ver)))
+"Returns some words related to the supplied words."
   (let* ((path-elems (list "data" ver "assoc" "list" lang
                            (string-join words ",")))
          (params `((filter . ,(string-append "/c/" lang))
@@ -98,10 +108,10 @@
                (hash-ref json-data 'similar)))))))
 
 (define (filter-irrelevant edge-hash word)
+"Filters out any edges which are not directly related to the word."
   (let ((new-edges
          (filter (λ (edge)
-                   (or (equal? (hash-ref edge 'surfaceStart) word)
-                       (equal? (hash-ref edge 'surfaceEnd) word)))
+                   (equal? (hash-ref edge 'end) word))
                  (hash-ref edge-hash 'edges))))
     (hash-set* edge-hash 'edges new-edges
                          'numFound (length new-edges))))
@@ -112,6 +122,7 @@
                         (host (def-net-host))
                         (port (def-net-port))
                         (ver (def-data-ver)))
+"Returns the types of ways a word can be used."
   (let ((query-type
          (λ (type) (call/input-url
                      (make-url
@@ -138,15 +149,51 @@
                              (host (def-net-host))
                              (port (def-net-port))
                              (ver (def-data-ver)))
+"Returns a hash of word types (e.g. 'n', 'v', 'a'), each
+containing all of the given words which belong in one of
+these categories."
   (let ((type-hash (make-hash)))
     (for-each (λ (type)
-                (hash-set! type-hash type (mutable-set)))
+                (hash-set! type-hash type (set)))
               types)
     (for-each (λ (word)
                 (set-for-each
                   (get-word-types word)
                   (λ (type)
-                    (set-add! (hash-ref type-hash type)
-                              word))))
+                    (hash-set! type-hash type
+                               (set-add (hash-ref type-hash type)
+                                        word)))))
               words)
     type-hash))
+
+
+(define (replace-word replacements word)
+"Replaces a single word from a set of replacements."
+  (let* ((word-types (set->list (get-word-types word)))
+         (potential-words
+          (set->list
+           (apply set-union (cons (set)
+                                  (map (curry hash-ref replacements)
+                                       word-types))))))
+    (if (not (empty? potential-words))
+        (list-ref potential-words
+                  (random (length potential-words)))
+        word)))
+
+(define (replace-words words theme-words (mult 3))
+"Replaces as many words as possible by substituting them from
+ a set of new words generated from a list of theme words."
+  (let* ((replaceable-words
+          (filter (compose not
+                           (curry set-member? unreplaceable-words))
+                  words))
+         (replacement-words
+          (split-words-by-type
+           (map car (get-related
+                      theme-words
+                      (* mult (length replaceable-words)))))))
+    (map (λ (word)
+           (if (set-member? replaceable-words word)
+               (replace-word replacement-words word)
+               word))
+         words)))
