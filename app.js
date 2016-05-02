@@ -28,14 +28,20 @@ function generate() {
     var formData = new FormData(document.getElementById("generate-form"));    
     var request = new XMLHttpRequest();
 
-    var contentBox = document.getElementById("generate-box");
+    var contentBox = document.getElementById("poems-box");
     var poemBox = document.createElement("article");
+    poemBox.className = "poem-container";
     var textContainer = document.createElement("div");
     textContainer.className = "text-wrapper";
     var loadingText = document.createTextNode("Generating, please wait...");
     textContainer.appendChild(loadingText);
     poemBox.appendChild(textContainer);
-    contentBox.appendChild(poemBox);
+    
+    if (contentBox.childNodes.length > 0) {
+	contentBox.insertBefore(poemBox, contentBox.childNodes[0]);
+    } else {
+	contentBox.appendChild(poemBox);
+    }
 
     request.onerror = function(e) {
 	contentBox.removeChild(poemBox);
@@ -47,11 +53,13 @@ function generate() {
 	if (!response.successful) {
 	    contentBox.removeChild(poemBox);
 	    window.alert("Generation failed");
-	    console.log(response);
 	} else {
-	    console.log(response);
 	    var lines = response.text.split("\n");
+	    var seed = response.seed;
+	    var seedField = document.createElement("h2");
+	    seedField.appendChild(document.createTextNode(seed));	    
 	    textContainer.removeChild(loadingText);
+	    textContainer.appendChild(seedField);
 	    lines.forEach(function(line) {
 		textContainer.appendChild(document.createTextNode(line));
 		textContainer.appendChild(document.createElement("br"));

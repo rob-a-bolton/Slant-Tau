@@ -8,22 +8,42 @@ main {
 }
 
 form {
-    clear: both;
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: right;
 }
 
-input {
-    width: auto;
-    clear: both;
+.input-justifier {
+    margin-top: 0.5em;
+    margin-bttom: 0.5em;
+    text-align: right;
 }
 
-article {
-    border: 1px solid black;
-    padding: 1em;
+label {
+    display: inline-block;
+    margin-right: 1em;
 }
 
 .text-wrapper {
     display: flex;
     flex-flow: column nowrap;
     justify-content: center;
+    align-items: center;
+}
+
+.poem-container {
+    background-color: #EFEFDD;
+    padding: 1em;
+    border: 2px solid #605A54;
+    border-radius: 4px;
+    width: 100%;
+    margin-top: 1em;
+}
+
+#poems-box {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: flex-start;
     align-items: center;
 }
