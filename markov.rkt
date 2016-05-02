@@ -14,10 +14,12 @@
 
 (require racket/generator
          racket/hash
+         "concept-net.rkt"
          db)
 
 (provide train
          generate-tables
+         drop-tables
          generate)
 
 (define (consume-blank-lines)
@@ -66,6 +68,10 @@
   (query-exec db-con (format "CREATE TABLE markov(~a, frequency INTEGER DEFAULT 0, UNIQUE KEY words (~a))"
                              (make-word-cols depth)
                              (make-word-col-names depth))))
+
+(define (drop-tables db-con)
+  (query-exec db-con "DROP TABLE IF EXISTS markov")
+  (query-exec db-con "DROP TABLE IF EXISTS words"))
 
 (define (word-generator)
 "Generator to output one word at a time from the current
@@ -184,14 +190,35 @@ input port."
     (_
      (string-append output-text " " word))))
 
-(define (generate db-con depth num-words lower-threshold upper-threshold)
+(define (generate db-con
+                  depth
+                  num-words
+                  lower-threshold
+                  upper-threshold
+                  (theme-words #f)
+                  (replacement-chance 0.5)
+                  (word-pool 3))
 "Generates a number of words using a word hash and given
 chain/state depth."
-  (foldl text-fold ""
+  (let ((first-pass
     (let gen-loop ((words '("#_START"))
                    (current-length 1))
       (let* ((ordered-words (reverse (take words (min (- depth 1) current-length))))
              (word (choose-word db-con ordered-words lower-threshold upper-threshold)))
-        (if (or (not word) (> current-length num-words))
+        (if (or (not word)
+                (or (and (> current-length num-words)
+                         (or (equal? word "#_END")
+                             (equal? word "#_BREAK")))
+                    (and (> current-length (* num-words 1.2))
+                         (or (equal? word "#_END")
+                             (equal? word "#_BREAK")
+                             (equal? word "#_LINE_BREAK")))))
             (drop (reverse words) 1)
             (gen-loop (cons word words) (1+ current-length)))))))
+    (foldl text-fold ""
+               (if theme-words
+                   (replace-words first-pass
+                                  theme-words
+                                  replacement-chance
+                                  word-pool)
+                   first-pass))))

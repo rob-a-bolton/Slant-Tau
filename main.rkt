@@ -10,7 +10,7 @@
 ;; modified software.  See http://www.gnu.org/copyleft/lesser.html
 ;; for more information.
 
-#lang racket/base
+#lang racket
 
 (module+ test
   (require rackunit))
@@ -19,6 +19,7 @@
   (require racket/cmdline
            racket/list
            racket/match
+           db
            "markov.rkt"))
 
 ;; Notice
@@ -62,74 +63,107 @@
 
 (module+ main
   ;; Main entry point, executed when run with the `racket` executable or DrRacket.
-  (define operation-list
-    (let* ((oplist (make-parameter '()))
-           (add-op (λ (op-name file-name)
-                     (oplist (cons (cons op-name file-name)
-                                   (oplist))))))
+  (let ([word-pool (make-parameter 3)]
+        [command (make-parameter #f)]
+        [num-words (make-parameter #f)]
+        [file-name (make-parameter #f)]
+        [choice-lower (make-parameter 2)]
+        [choice-upper (make-parameter 4)]
+        [depth (make-parameter 8)]
+        [cache-size (make-parameter 1000)]
+        [theme-words (make-parameter #f)]
+        [replace-chance (make-parameter 0.5)]
+        [db-username (make-parameter "slant-tau")]
+        [db-name (make-parameter "slant_tau")]
+        [db-password (make-parameter "slant-tau")])
       (command-line
        #:program program-name
+       #:once-any
+       [("-t" "--train")
+          arg-file
+          "Train on given file."
+          (begin (command 'train)
+                 (file-name arg-file))]
+       [("-g" "--generate")
+          number
+          "Generate a number of words."
+          (begin (command 'generate)
+                 (num-words (string->number number)))]
+       [("-G" "--generate-tables")
+          "Sets up the MySQL database for training, with given depht."
+          (command 'generate-tables)]
+       [("--drop-tables")
+          "Drops the database tables, clearing trained data."
+          (command 'drop-table)]
        #:once-each
        [("-V" "--version") "Prints the program version."
                            (begin
                              (print-version)
                              (exit))]
-       #:multi
-       [("-t" "--train")    file-name
-                            "Train on given file."
-                            (add-op 'train file-name)]
-       [("-g" "--generate") num-words
-                            "Generate a number of words."
-                            (add-op 'generate num-words)]
-       [("-i" "--import")   file-name
-                            "Import training data from file."
-                            (add-op 'import file-name)]
-       [("-e" "--export")   file-name
-                            "Export training data to file."
-                            (add-op 'export file-name)]
-       [("--min-threshold") number
-                            "Sets the lower bound for minimum number of words to accept in word choice."
-                            (add-op 'min-threshold number)]
-       [("--max-threshold") number
-                            "Sets the upper bound for minimum number of words to accept in word choice."
-                            (add-op 'max-threshold number)]
-       [("-s" "--seed")     number
-                            "Sets the random number generator's seed value."
-                            (add-op 'seed number)]
-         
-       #:handlers (λ (args) (reverse (oplist)))
-                  '()))) ; Inelegant, but required
-  (let ([*word-hash* (make-hash)]
-        [min-threshold (make-parameter 1)]
-        [max-threshold (make-parameter 3)])
-    (for ((op-pair operation-list))
-      (let ((op (car op-pair))
-            (arg (cdr op-pair)))
-        (match op
-          ['train
-           (with-input-from-file arg
-             (λ ()
-               (train *word-hash* 10)))]
-          ['generate
-           (begin
-             (display (generate *word-hash*
-                              9
-                              (string->number arg)
-                              (min-threshold)
-                              (max-threshold)))
-             (newline))]
-          ['import
-           (merge-word-hashes *word-hash*
-                              (call-with-input-file arg
-                                (λ (port) (read port))))]
-          ['export
-           (call-with-output-file arg
-             (λ (port)
-               (write *word-hash* port)))]
-          ['min-threshold
-           (min-threshold (string->number arg))]
-          ['max-threshold
-           (max-threshold (string->number arg))]
-          ['seed
-           (random-seed (string->number arg))]))))
+       [("-d" "--depth")
+          number
+          "Sets the depth to use for training/generation."
+          (depth (string->number number))]
+       [("-c" "--cache-size")
+          number
+          "Sets the cache size for training."
+          (cache-size (string->number number))]
+       [("--min-threshold")
+          number
+          "Sets the lower bound for minimum number of words to accept in word choice."
+          (choice-lower (string->number number))]
+       [("--max-threshold")
+          number
+          "Sets the upper bound for minimum number of words to accept in word choice."
+          (choice-upper (string->number number))]
+       [("-s" "--seed")
+          number
+          "Sets the random number generator's seed value."
+          (random-seed (string->number number))]
+       [("-w" "--theme-words")
+          words
+          "Sets the theme words for generation."
+          (theme-words (string-split words ","))]
+       [("-r" "--replace-chance")
+          number
+          "Sets the chance of replacing a word (0.0 -> 1.0)."
+          (replace-chance (string->number number))]
+       [("--word-pool")
+          number
+          "Sets the scale factor for number of replacement words. Multiplies against the number of words generated."
+          (word-pool (string->number number))]
+       [("-u" "--username")
+          username
+          "The username for mysql."
+          (db-username username)]
+       [("-p" "--password")
+          password
+          "The password for mysql."
+          (db-password password)]
+       [("-n" "--database-name")
+          name
+          "The mysql database name."
+          (db-name name)]
+       #:ps
+       " This work includes data from ConceptNet 5, which was compiled by the Commonsense Computing Initiative. ConceptNet 5 is freely available under the Creative Commons Attribution-ShareAlike license (CC BY SA 3.0) from http://conceptnet5.media.mit.edu. The included data was created by contributors to Commonsense Computing projects, contributors to Wikimedia projects, Games with a Purpose, Princeton University's WordNet, DBPedia, OpenCyc, and Umbel."
+       )
+      (if (not (command))
+          (error "No command given.")
+          (let ([db-con (mysql-connect #:database (db-name)
+                                       #:user (db-username)
+                                       #:password (db-password))])
+            (cond
+              ((equal? (command) 'train)
+               (with-input-from-file (file-name)
+                 (λ ()
+                   (train db-con (depth) (cache-size)))))
+              ((equal? (command) 'generate)
+               (displayln (generate db-con (depth) (num-words)
+                                    (choice-lower) (choice-upper)
+                                    (theme-words)
+                                    (replace-chance))))
+              ((equal? (command) 'generate-tables)
+               (generate-tables db-con (depth)))
+              ((equal? (command) 'drop-tables)
+               (drop-tables))))))
   )
