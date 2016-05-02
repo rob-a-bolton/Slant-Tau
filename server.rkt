@@ -31,9 +31,30 @@
 (define db-con (mysql-connect #:database "slant_tau_web"
                               #:user "slant-tau"
                               #:password "slant-tau"))
+(define depth 8)
 
 (define (get-file name)
   (string-append root-dir "/" name))
+
+(define (limit lower upper val)
+  (let ((real-val (if (string? val)
+                      (string->number val)
+                      val)))
+  (if real-val
+      (min (max lower real-val) upper)
+      lower)))
+
+(define (aget key lst)
+  (let ((val (assoc key lst)))
+    (if val
+        (cdr val)
+        #f)))
+
+(define (parse-theme-words val)
+  (let ((words (string-split (or val ""))))
+    (if (not (empty? words))
+        words
+        #f)))
 
 (define (serve-index req)
   (response/xexpr
@@ -51,16 +72,57 @@
                            (name "file-name")
                            (type "file")))
                    (input ((id "file-upload-button")
+                           (value "Upload")
                            (type "submit"))))
-                  (form ((onsubmit "generate(); return false;"))
+                  (form ((id "generate-form")
+                         (onsubmit "generate(); return false;"))
                    (legend "Generate")
-                   "Length:" (br)
-                   (input ((id "filename")
-                           (name "length")
+                   (label "Length (words, minimum)") (br)
+                   (input ((name "length")
                            (type "number")
                            (min "1")
-                           (max "500")))
+                           (max "500")
+                           (value "100")))
+                   (br)
+                   (label "Theme words (space delimited)")
+                   (input ((name "theme-words")
+                           (type "text")))
+                   (br)
+                   (label "Replacement chance per word")
+                   (input ((name "replace-chance")
+                           (type "number")
+                           (step "0.1")
+                           (min "0.0")
+                           (max "1.0")
+                           (value "0.8")))
+                   (br)
+                   (label "Seed value") (br)
+                   (input ((seed "seed")
+                           (type "number")))
+                   (br)
+                   (label "Word pool size (as factor of generated words")
+                   (input ((name "word-pool")
+                           (type "number")
+                           (min "1")
+                           (max "5")
+                           (value "3")))
+                   (br)
+                   (label "Fewest matches to aim for (per word)")
+                   (input ((name "lower-threshold")
+                           (type "number")
+                           (min "1")
+                           (max ,(number->string (- depth 2)))
+                           (value "1")))
+                   (br)
+                   (label "Highest matches to aim for (per word)")
+                   (input ((name "upper-threshold")
+                           (type "number")
+                           (min "2")
+                           (max ,(number->string (- depth 1)))
+                           (value "4")))
+                   (br)
                    (input ((id "generate-button")
+                           (value "Generate")
                            (type "submit"))))))))))
 
 (define (train-data req)
@@ -87,8 +149,42 @@
    port))
 
 (define (generate-poem req)
-  (response/xexpr
-   `(body "oops")))
+  (let* ([params (request-bindings req)]
+         [num-words (limit 1 500 (or (aget 'num-words params)
+                                     100))]
+         [lower-threshold (limit 1
+                                 (- depth 1)
+                                 (aget 'lower-threshold
+                                        params))]
+         [upper-threshold (limit lower-threshold
+                                 (- depth 1)
+                                 (aget 'upper-threshold
+                                        params))]
+         [theme-words-param (aget 'theme-words params)]
+         [theme-words (parse-theme-words theme-words-param)]
+         [replace-chance (limit 0.0
+                                1.0
+                                (aget 'replace-chance
+                                       params))]
+         [word-pool (limit 1 5 (aget 'word-pool params))]
+         [text (with-handlers
+                 ([exn:fail? (λ (exn) (displayln exn))])
+                 (generate db-con
+                           depth
+                           num-words
+                           lower-threshold
+                           upper-threshold
+                           theme-words
+                           replace-chance
+                           word-pool))])
+    (displayln text)
+    (response 200 #"OK"
+              (current-seconds)
+              #"application/json"
+              '()
+              (curry write-json
+                     (hash 'successful (if text #t #f)
+                           'text text)))))
 
 (define (serve-css req)
   (serve-file "def.css"))

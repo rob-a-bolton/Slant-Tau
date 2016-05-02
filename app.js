@@ -23,3 +23,50 @@ function uploadFile(e) {
 
     request.send(file);
 }
+
+function generate() {
+    var formData = new FormData(document.getElementById("generate-form"));    
+    var request = new XMLHttpRequest();
+
+    var contentBox = document.getElementById("generate-box");
+    var poemBox = document.createElement("article");
+    var textContainer = document.createElement("div");
+    textContainer.className = "text-wrapper";
+    var loadingText = document.createTextNode("Generating, please wait...");
+    textContainer.appendChild(loadingText);
+    poemBox.appendChild(textContainer);
+    contentBox.appendChild(poemBox);
+
+    request.onerror = function(e) {
+	contentBox.removeChild(poemBox);
+	window.alert("Generation failed");
+    }
+
+    request.onload = function(e) {
+	var response = JSON.parse(request.responseText);
+	if (!response.successful) {
+	    contentBox.removeChild(poemBox);
+	    window.alert("Generation failed");
+	    console.log(response);
+	} else {
+	    console.log(response);
+	    var lines = response.text.split("\n");
+	    textContainer.removeChild(loadingText);
+	    lines.forEach(function(line) {
+		textContainer.appendChild(document.createTextNode(line));
+		textContainer.appendChild(document.createElement("br"));
+	    });
+	}
+    }
+
+    var vals = [];
+    for (let entry of formData.entries()) {
+	vals.push(escape(entry[0]) + "=" + escape(entry[1]));
+    }
+
+    var paramString = vals.join([separator = "&"]);
+    
+    request.open("GET", "/generate?" + paramString, true);
+    request.timeout = 0;
+    request.send();
+}

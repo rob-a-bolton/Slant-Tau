@@ -7,3 +7,23 @@ main {
     margin: auto;
 }
 
+form {
+    clear: both;
+}
+
+input {
+    width: auto;
+    clear: both;
+}
+
+article {
+    border: 1px solid black;
+    padding: 1em;
+}
+
+.text-wrapper {
+    display: flex;
+    flex-flow: column nowrap;
+    justify-content: center;
+    align-items: center;
+}
