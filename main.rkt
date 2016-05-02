@@ -73,6 +73,7 @@
         [cache-size (make-parameter 1000)]
         [theme-words (make-parameter #f)]
         [replace-chance (make-parameter 0.5)]
+        [seed (make-parameter (random 1 (sub1 (expt 2 31))))]
         [db-username (make-parameter "slant-tau")]
         [db-name (make-parameter "slant_tau")]
         [db-password (make-parameter "slant-tau")])
@@ -119,7 +120,7 @@
        [("-s" "--seed")
           number
           "Sets the random number generator's seed value."
-          (random-seed (string->number number))]
+          (seed (round (string->number number)))]
        [("-w" "--theme-words")
           words
           "Sets the theme words for generation."
@@ -158,6 +159,8 @@
                  (λ ()
                    (train db-con (depth) (cache-size)))))
               ((equal? (command) 'generate)
+               (random-seed (seed))
+               (displayln (format "Seed: ~a" (seed)))
                (displayln (generate db-con (depth) (num-words)
                                     (choice-lower) (choice-upper)
                                     (theme-words)

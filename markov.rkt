@@ -29,12 +29,9 @@
       ((eof-object? line)
        (values newlines #f))
       ((equal? line "")
-       (consume (1+ newlines) (read-line (current-input-port) 'any)))
+       (consume (add1 newlines) (read-line (current-input-port) 'any)))
       (else
        (values newlines line)))))
-
-(define (1+ num)
-  (+ 1 num))
 
 (define (make-word-query depth #:joiner (joiner ",") #:suffix (suffix ""))
   (string-join
@@ -93,7 +90,7 @@ input port."
                  (begin (yield "#_END") (yield "#_START"))))
               (for-each yield (string-split (string-replace line #rx"[^A-Za-z0-9_ .?!,;:'\"-]" "")))
               (let-values (((newlines line) (consume-blank-lines)))
-                (gen-loop (1+ newlines) line))))))))
+                (gen-loop (add1 newlines) line))))))))
 
 (define (get-unique-words word-hash)
 "Returns all the unique words in the word hash."
@@ -116,7 +113,7 @@ input port."
               "INSERT INTO markov"
               "VALUES ~a"
               "ON DUPLICATE KEY UPDATE frequency = frequency + VALUES(frequency)"))
-                                      (make-vals-template (1+ depth) (hash-count word-hash)))))
+                                      (make-vals-template (add1 depth) (hash-count word-hash)))))
     (apply query-exec (append (list db-con word-insert-query) unique-words))
     (apply query-exec (append (list db-con markov-insert-query) (get-word-insert-vals word-hash)))))
 
@@ -148,13 +145,13 @@ input port."
          #t)
         (else
          (begin
-           (hash-update! word-hash (reverse words) 1+ 1)
+           (hash-update! word-hash (reverse words) add1 1)
            (train-loop (cons (g) (drop-right words 1)))))))))
 
 (define (choose-weighted-word weighted-words)
 "Picks a word at random from a weighted list of words."
   (if (not (empty? weighted-words))
-      (let loop ((num (random (1+ (foldl + 0 (map (λ (vec) (vector-ref vec 1)) weighted-words)))))
+      (let loop ((num (random (add1 (foldl + 0 (map (λ (vec) (vector-ref vec 1)) weighted-words)))))
                  (words weighted-words))
         (let ((word (vector-ref (car words) 0))
               (weight (vector-ref (car words) 1)))
@@ -170,7 +167,7 @@ input port."
       (cond
         ((and (not weighted-words) (= (length words) 1))
          #f)
-        ((and (or (not weighted-words) (> (random lower-threshold (1+ upper-threshold))
+        ((and (or (not weighted-words) (> (random lower-threshold (add1 upper-threshold))
                                           (length weighted-words)))
               (> (length words) 1))
          (gen-loop (drop words 1)))
@@ -214,7 +211,7 @@ chain/state depth."
                              (equal? word "#_BREAK")
                              (equal? word "#_LINE_BREAK")))))
             (drop (reverse words) 1)
-            (gen-loop (cons word words) (1+ current-length)))))))
+            (gen-loop (cons word words) (add1 current-length)))))))
     (foldl text-fold ""
                (if theme-words
                    (replace-words first-pass
