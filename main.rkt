@@ -63,12 +63,12 @@
 
 (module+ main
   ;; Main entry point, executed when run with the `racket` executable or DrRacket.
-  (let ([word-pool (make-parameter #f)]
+  (let ([word-pool (make-parameter 3)]
         [command (make-parameter #f)]
         [num-words (make-parameter #f)]
         [file-name (make-parameter #f)]
-        [choice-lower (make-parameter 1)]
-        [choice-upper (make-parameter 3)]
+        [choice-lower (make-parameter 2)]
+        [choice-upper (make-parameter 4)]
         [depth (make-parameter 8)]
         [cache-size (make-parameter 1000)]
         [theme-words (make-parameter #f)]
@@ -125,6 +125,10 @@
           number
           "Sets the chance of replacing a word (0.0 -> 1.0)."
           (replace-chance (string->number number))]
+       [("--word-pool")
+          number
+          "Sets the scale factor for number of replacement words. Multiplies against the number of words generated."
+          (word-pool (string->number number))]
        [("-u" "--username")
           username
           "The username for mysql."

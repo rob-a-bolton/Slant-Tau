@@ -203,7 +203,7 @@ these categories."
                       (* word-pool (length replaceable-words)))))))
     (map (λ (word)
            (if (and (set-member? replaceable-words word)
-                    (> (random) replacement-chance))
+                    (< (random) replacement-chance))
                (replace-word replacement-words word)
                word))
          words)))

@@ -193,7 +193,8 @@ input port."
                   lower-threshold
                   upper-threshold
                   (theme-words #f)
-                  (replacement-chance 0.5))
+                  (replacement-chance 0.5)
+                  (word-pool 3))
 "Generates a number of words using a word hash and given
 chain/state depth."
   (let ((first-pass
@@ -215,5 +216,6 @@ chain/state depth."
                (if theme-words
                    (replace-words first-pass
                                   theme-words
-                                  replacement-chance)
+                                  replacement-chance
+                                  word-pool)
                    first-pass))))
