@@ -75,21 +75,19 @@ input port."
     (let-values (((newlines line) (consume-blank-lines)))
       (let gen-loop ((newlines newlines)
                      (line line))
-        (cond
-          ((= newlines 1)
-           (yield "#_BREAK"))
-          ((> newlines 1)
-           (begin (yield "#_END") (yield "#_START"))))
         (if (not line)
-            (yield #f)
+            (begin (yield "#_END") (yield #f))
             (begin
+              (cond
+                ((= newlines 1)
+                 (yield "#_LINE_BREAK"))
+                ((= newlines 2)
+                 (yield "#_BREAK"))
+                ((> newlines 2)
+                 (begin (yield "#_END") (yield "#_START"))))
               (for-each yield (string-split (string-replace line #rx"[^A-Za-z0-9_ .?!,;:'\"-]" "")))
               (let-values (((newlines line) (consume-blank-lines)))
-                (if (eof-object? line)
-                    (yield "#_END")
-                    (begin
-                      (yield "#_LINE_BREAK")
-                      (gen-loop newlines line))))))))))
+                (gen-loop (1+ newlines) line))))))))
 
 (define (get-unique-words word-hash)
 "Returns all the unique words in the word hash."
