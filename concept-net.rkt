@@ -173,12 +173,15 @@ these categories."
   (let* ((word-types (set->list (get-word-types word)))
          (potential-words
           (set->list
-           (apply set-union (cons (set)
-                                  (map (curry hash-ref replacements)
-                                       word-types))))))
+           (apply set-union
+                  (cons (set)
+                        (map (λ (word-type)
+                               (hash-ref replacements word-type set))
+                             word-types))))))
     (if (not (empty? potential-words))
-        (list-ref potential-words
-                  (random (length potential-words)))
+        (string-replace (list-ref potential-words
+                                  (random (length potential-words)))
+          "_" " ")
         word)))
 
 (define (replace-words words theme-words (mult 3))
