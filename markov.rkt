@@ -125,28 +125,30 @@ input port."
                             (length words))))
     (apply query-rows (append (list db-con word-query) words))))
 
-(define (train db-con depth cache-size)
+(define (train db-con depth (cache-size 1000))
 "Modifies a word hash from the current input port."
   (let* ((g (word-generator))
          (word-hash (make-hash)))
-    (let train-loop ((words (list (g))))
-      (when (or (not (first words))
-                (= (hash-count word-hash) cache-size))
-        (begin (upsert-words db-con word-hash depth)
-               (hash-clear! word-hash)))
-      (cond
-        ((and (> (length words) 1)
-              (equal? "#_START" (first words))
-              (equal? "#_END" (second words)))
-         (train-loop '("#_START")))
-        ((< (length words) depth)
-         (train-loop (cons (g) words)))
-        ((not (first words))
-         #t)
-        (else
-         (begin
-           (hash-update! word-hash (reverse words) add1 1)
-           (train-loop (cons (g) (drop-right words 1)))))))))
+    (call-with-transaction db-con
+      (λ ()
+        (let train-loop ((words (list (g))))
+          (when (or (not (first words))
+                    (= (hash-count word-hash) cache-size))
+            (begin (upsert-words db-con word-hash depth)
+                   (hash-clear! word-hash)))
+          (cond
+            ((and (> (length words) 1)
+                  (equal? "#_START" (first words))
+                  (equal? "#_END" (second words)))
+             (train-loop '("#_START")))
+            ((< (length words) depth)
+             (train-loop (cons (g) words)))
+            ((not (first words))
+             #t)
+            (else
+             (begin
+               (hash-update! word-hash (reverse words) add1 1)
+               (train-loop (cons (g) (drop-right words 1)))))))))))
 
 (define (choose-weighted-word weighted-words)
 "Picks a word at random from a weighted list of words."
