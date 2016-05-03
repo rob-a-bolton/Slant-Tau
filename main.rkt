@@ -45,7 +45,7 @@
 
 ;; Code here
 
-(define program-version '(0 0 1))
+(define program-version '(1 0 0))
 (define program-name "slant-tau")
 (define (print-version)
   (apply fprintf `(,(current-error-port)
