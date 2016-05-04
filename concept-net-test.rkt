@@ -32,13 +32,10 @@
                               (url concept-net-url
                                    "c" "en" "toast")))
         (toast-def (cn:get-concept "toast")))
-    (test-true "Connection possible"
-      (jsexpr? toast-page))
-    (test-true "get-concept gets definition"
-      (equal? toast-def
-              toast-page))
-    (test-equal? "search works"
-      '(("/r/MadeOf" . "bread"))
+    (check-equal? toast-def
+                  toast-page)
+    (check-equal?
+     '(("/r/MadeOf" . "bread"))
       (map (λ (edge)
              (cons (hash-ref edge 'rel)
                    (hash-ref edge 'surfaceEnd)))
@@ -48,28 +45,24 @@
       
 
 (test-begin
-  (let ((t-assocs-raw '(("toast" . 0.9991357567601089)
-                        ("toaster" . 0.913973388310328)
-                        ("breadcrumb" . 0.9001408372514137)
-                        ("challah" . 0.8989284602769767)
-                        ("laverbread" . 0.895879098474489)))
-        (t-assocs-lib (cn:get-related (list "toast") 5)))
-    (test-equal? "get-related works"
-                 t-assocs-lib
-                 t-assocs-raw)))
+  (let ((t-assocs-raw (set "toast"
+                           "toaster"
+                           "breadcrumb"
+                           "challah"
+                           "laverbread"))
+        (t-assocs-lib (list->set (cn:get-related (list "toast") 5))))
+    (check-equal? t-assocs-lib
+                  t-assocs-raw)))
 
 (test-begin
-  (let ((toast-types (set "v" "n"))
-        (toast-types-lib (cn:get-word-types "toast")))
-    (test-equal? "get-types gets right types for toast"
-                 toast-types-lib
-                 toast-types)))
+  (let ((bottle-types (set "v" "n"))
+        (bottle-types-lib (force (cn:get-word-types "bottle"))))
+    (check-equal? bottle-types-lib
+                  bottle-types)))
 
 (test-begin
-  (let ((expected-types (make-hash `(("a" . ,(mutable-set))
-                                     ("v" . ,(mutable-set "toast"))
-                                     ("n" . ,(mutable-set "toast")))))
-        (split-types (cn:split-words-by-type (list "toast"))))
-    (test-equal? "split-word-by-type correctly splits toast"
-                 split-types
-                 expected-types)))
+  (let ((expected-types (make-hash `(("v" . ,(mutable-set "bottle"))
+                                     ("n" . ,(mutable-set "bottle")))))
+        (split-types (force (cn:split-words-by-type (list "bottle")))))
+    (check-equal? split-types
+                  expected-types)))

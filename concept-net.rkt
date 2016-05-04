@@ -102,10 +102,12 @@ can handle."
     (call/input-url query-url get-pure-port
       (λ (port)
         (let ((json-data (read-json port)))
-          (map (λ (pair)
-                 (cons (last (string-split (car pair) "/"))
-                       (cadr pair)))
-               (hash-ref json-data 'similar)))))))
+          (set->list
+           (list->set
+            (append words
+                    (map (λ (pair)
+                           (last (string-split (car pair) "/")))
+                         (hash-ref json-data 'similar))))))))))
 
 (define (filter-irrelevant edge-hash word)
 "Filters out any edges which are not directly related to the word."
@@ -117,36 +119,37 @@ can handle."
                          'numFound (length new-edges))))
 
 (define (get-word-types word
+                        (word-types (set "v" "n" "a"))
                         (lang (def-lang))
                         (host (def-net-host))
                         (port (def-net-port))
                         (ver (def-data-ver)))
 "Returns the types of ways a word can be used."
-  (call/input-url
-    (make-url "http"
-              #f
-              host
-              port
-              #t
-              (map (curryr path/param '())
-                   (list "data" ver "c" lang word))
-              '()
-              #f)
-    get-pure-port
-    (λ (port)
-      (let ((edges (hash-ref (read-json port) 'edges)))
-        (list->set
-         (filter (compose not false?)
-           (map (λ (edge)
-                  (let ((end (string-split (hash-ref edge 'end)
-                                           "/")))
-                    (if (and (> (length end) 3)
-                             (equal? (take end 3)
-                                     (list "c" lang word)))
-                        (list-ref end 3)
-                        #f)))
-                edges)))))))
-;    (list->set (filter (compose not false?) (map query-type types)))))
+(delay/thread
+ (list->set
+  (filter (compose not false?)
+    (map force
+         (set-map
+          word-types
+          (λ (type)
+            (delay/thread
+             (call/input-url
+              (make-url "http"
+                        #f
+                        host
+                        port
+                        #t
+                        (map (curryr path/param '())
+                             (list "data" ver "c" lang word type))
+                        '()
+                        #f)
+              get-pure-port
+              (λ (port)
+                (let ((num-found (hash-ref (read-json port)
+                                           'numFound)))
+                  (if (> num-found 0)
+                      type
+                      #f))))))))))))
 
 (define (split-words-by-type words
                              (lang (def-lang))
@@ -156,21 +159,31 @@ can handle."
 "Returns a hash of word types (e.g. 'n', 'v', 'a'), each
 containing all of the given words which belong in one of
 these categories."
-  (let ((type-hash (make-hash)))
-    (for-each
-     (λ (word)
-       (set-for-each (get-word-types word)
+(let ((type-hash (make-hash))
+      (word-promises (map
+                      (λ (word)
+                        (delay/thread
+                         (cons word
+                               (force (get-word-types word)))))
+                      words)))
+  (for-each
+   (λ (word-promise)
+     (let* ((word-type-pair (force word-promise))
+            (word (car word-type-pair))
+            (types (cdr word-type-pair)))
+       
+       (set-for-each types
          (λ (type)
            (when (not (hash-has-key? type-hash type))
              (hash-set! type-hash type (mutable-set)))
            (set-add! (hash-ref type-hash type)
-                     word))))
-     words)
-    type-hash))
+                     word)))))
+   word-promises)
+  type-hash))
 
 (define (replace-word replacements word)
 "Replaces a single word from a set of replacements."
-  (let* ((word-types (set->list (get-word-types word)))
+  (let* ((word-types (set->list (force (get-word-types word))))
          (potential-words
           (set->list
            (apply set-union
@@ -198,9 +211,8 @@ these categories."
                   words))
          (replacement-words
           (split-words-by-type
-           (map car (get-related
-                      theme-words
-                      (* word-pool (length replaceable-words)))))))
+           (get-related theme-words
+                        (* word-pool (length replaceable-words))))))
     (map (λ (word)
            (if (and (set-member? replaceable-words word)
                     (< (random) replacement-chance))
