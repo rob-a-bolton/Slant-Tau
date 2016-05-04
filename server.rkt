@@ -15,6 +15,7 @@
 (require web-server/servlet
          web-server/servlet-env
          web-server/dispatch
+         web-server/managers/timeouts
          json
          racket/date
          "markov.rkt"
@@ -204,8 +205,9 @@
                            theme-words
                            replace-chance
                            word-pool))])
-    (displayln (format "==[~a] Generating:\n~a\n"
+    (displayln (format "==[~a] Generating (~a):\n~a\n"
                        (date->string (current-date))
+                       seed
                         text))
     (response 200 #"OK"
               (current-seconds)
@@ -238,6 +240,19 @@
                   '()
                   void))))
 
-(serve/servlet slant-dispatch
-               #:launch-browser? #f
-               #:servlet-regexp #rx"")
+(define program-name "slant-tau-web")
+
+(let ([port (make-parameter 8080)])
+  (command-line
+   #:program program-name
+   #:once-each
+   [("-p" "--port")
+      number
+      "Sets the port to serve from."
+      (port (string->number number))]
+   #:ps
+   "This work includes data from ConceptNet 5, which was compiled by the Commonsense Computing Initiative. ConceptNet 5 is freely available under the Creative Commons Attribution-ShareAlike license (CC BY SA 3.0) from http://conceptnet5.media.mit.edu. The included data was created by contributors to Commonsense Computing projects, contributors to Wikimedia projects, Games with a Purpose, Princeton University's WordNet, DBPedia, OpenCyc, and Umbel."
+   )
+   (serve/servlet slant-dispatch
+                  #:launch-browser? #f
+                  #:servlet-regexp #rx""))
